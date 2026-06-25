@@ -1,0 +1,370 @@
+@import "tailwindcss";
+
+/* ===================================================================
+   PROPERTYOS DESIGN SYSTEM
+   Inspired by: Linear, Notion, Airbnb, Luxury Real Estate
+   =================================================================== */
+
+:root {
+  /* Core dark palette */
+  --os-bg:           #07090f;
+  --os-surface:      #0d1117;
+  --os-surface-2:    #111622;
+  --os-surface-3:    #161d2e;
+  --os-border:       rgba(255,255,255,0.06);
+  --os-border-hover: rgba(255,255,255,0.12);
+
+  /* Text hierarchy */
+  --os-text-primary:   #f0f4ff;
+  --os-text-secondary: #8892aa;
+  --os-text-muted:     #4a5470;
+
+  /* Brand accent - Emerald */
+  --os-accent:       #16c784;
+  --os-accent-dim:   rgba(22,199,132,0.12);
+  --os-accent-glow:  rgba(22,199,132,0.25);
+
+  /* Status palette */
+  --os-available: #16c784;
+  --os-negotiation: #f59e0b;
+  --os-site-visit: #38bdf8;
+  --os-booked: #818cf8;
+  --os-sold: #f43f5e;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans), "Inter", -apple-system, sans-serif;
+  --font-mono: var(--font-geist-mono), "JetBrains Mono", monospace;
+}
+
+/* ===================================================================
+   BASE RESET
+   =================================================================== */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--os-bg);
+  color: var(--os-text-primary);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ===================================================================
+   DESIGN TOKENS — SURFACE STYLES
+   =================================================================== */
+
+/* Primary glass card */
+.os-card {
+  background: var(--os-surface);
+  border: 1px solid var(--os-border);
+  border-radius: 16px;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+.os-card:hover {
+  border-color: var(--os-border-hover);
+}
+
+/* Elevated glass */
+.os-glass {
+  background: rgba(13, 17, 23, 0.75);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--os-border);
+}
+
+/* Frosted (for modals/overlays) */
+.os-frosted {
+  background: rgba(7, 9, 15, 0.92);
+  backdrop-filter: blur(32px) saturate(200%);
+  -webkit-backdrop-filter: blur(32px) saturate(200%);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* ===================================================================
+   TYPOGRAPHY SCALE
+   =================================================================== */
+.os-display {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+  color: var(--os-text-primary);
+}
+
+.os-heading-1 {
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.os-heading-2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.os-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--os-text-muted);
+}
+
+/* ===================================================================
+   INTERACTIVE ELEMENTS
+   =================================================================== */
+
+/* Primary action button */
+.os-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 24px;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #07090f;
+  background: var(--os-accent);
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  text-decoration: none;
+  letter-spacing: -0.01em;
+}
+.os-btn-primary:hover {
+  background: #19e098;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 32px rgba(22,199,132,0.3);
+}
+.os-btn-primary:active {
+  transform: translateY(0);
+}
+
+/* Ghost button */
+.os-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 20px;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--os-text-secondary);
+  background: transparent;
+  border: 1px solid var(--os-border);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.os-btn-ghost:hover {
+  background: var(--os-surface-2);
+  border-color: var(--os-border-hover);
+  color: var(--os-text-primary);
+}
+
+/* Icon button */
+.os-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  font-size: 1rem;
+  color: var(--os-text-secondary);
+  background: var(--os-surface-2);
+  border: 1px solid var(--os-border);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+.os-btn-icon:hover {
+  background: var(--os-surface-3);
+  color: var(--os-text-primary);
+  border-color: var(--os-border-hover);
+}
+
+/* ===================================================================
+   INPUT FIELDS
+   =================================================================== */
+.os-input {
+  width: 100%;
+  background: var(--os-surface-2);
+  border: 1px solid var(--os-border);
+  border-radius: 12px;
+  color: var(--os-text-primary);
+  font-size: 0.9375rem;
+  padding: 13px 16px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  font-family: var(--font-sans);
+}
+.os-input::placeholder {
+  color: var(--os-text-muted);
+}
+.os-input:focus {
+  border-color: var(--os-accent);
+  box-shadow: 0 0 0 3px rgba(22, 199, 132, 0.12);
+}
+
+.os-input-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--os-text-secondary);
+  margin-bottom: 6px;
+  letter-spacing: 0.02em;
+}
+
+/* ===================================================================
+   STATUS BADGES
+   =================================================================== */
+.os-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.os-status::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.os-status-available {
+  color: var(--os-available);
+  background: rgba(22,199,132,0.1);
+}
+.os-status-available::before { background: var(--os-available); }
+
+.os-status-negotiation {
+  color: var(--os-negotiation);
+  background: rgba(245,158,11,0.1);
+}
+.os-status-negotiation::before { background: var(--os-negotiation); }
+
+.os-status-site_visit {
+  color: var(--os-site-visit);
+  background: rgba(56,189,248,0.1);
+}
+.os-status-site_visit::before { background: var(--os-site-visit); }
+
+.os-status-booked {
+  color: var(--os-booked);
+  background: rgba(129,140,248,0.1);
+}
+.os-status-booked::before { background: var(--os-booked); }
+
+.os-status-sold {
+  color: var(--os-sold);
+  background: rgba(244,63,94,0.1);
+}
+.os-status-sold::before { background: var(--os-sold); }
+
+/* ===================================================================
+   ANIMATIONS
+   =================================================================== */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(24px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes pulseAccent {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(22, 199, 132, 0); }
+  50%       { box-shadow: 0 0 0 6px rgba(22, 199, 132, 0.12); }
+}
+@keyframes scanline {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+.os-fade-in {
+  animation: fadeIn 0.4s ease forwards;
+}
+.os-slide-up {
+  animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Skeleton shimmer */
+.os-skeleton {
+  background: linear-gradient(90deg, var(--os-surface) 25%, var(--os-surface-2) 50%, var(--os-surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+/* ===================================================================
+   SCROLLBAR
+   =================================================================== */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.08);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--os-accent);
+}
+
+/* No scrollbar utility */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ===================================================================
+   STAT CARD GRADIENTS
+   =================================================================== */
+.grad-blue   { background: linear-gradient(135deg, rgba(56,189,248,0.08) 0%, transparent 60%); }
+.grad-emerald{ background: linear-gradient(135deg, rgba(22,199,132,0.08) 0%, transparent 60%); }
+.grad-purple { background: linear-gradient(135deg, rgba(129,140,248,0.08) 0%, transparent 60%); }
+.grad-amber  { background: linear-gradient(135deg, rgba(245,158,11,0.08) 0%, transparent 60%); }
+
+/* ===================================================================
+   PROPERTY CARD HOVER
+   =================================================================== */
+.property-card {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.2s ease;
+}
+.property-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08);
+}
+
+/* ===================================================================
+   SELECTION
+   =================================================================== */
+::selection {
+  background: rgba(22, 199, 132, 0.25);
+  color: var(--os-text-primary);
+}
