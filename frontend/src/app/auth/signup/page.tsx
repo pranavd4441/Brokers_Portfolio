@@ -12,6 +12,7 @@ export default function SignupPage() {
 
   const [companyName, setCompanyName] = useState('');
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -30,7 +31,7 @@ export default function SignupPage() {
     setClientError(null);
     clearError();
 
-    if (!companyName || !name || !email || !password) {
+    if (!companyName || !name || !phone || !email || !password) {
       setClientError('Please fill in all fields.');
       return;
     }
@@ -42,7 +43,7 @@ export default function SignupPage() {
 
     setLoading(true);
     try {
-      await signup(companyName, name, email, password);
+      await signup(companyName, name, email, password, phone);
       router.push('/dashboard');
     } catch (err: any) {
       // Error is handled in the store
@@ -122,6 +123,24 @@ export default function SignupPage() {
                   onChange={(e) => setName(e.target.value)}
                   className="appearance-none block w-full px-4 py-3 rounded-xl border border-slate-800 bg-slate-950/60 placeholder-slate-500 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
                   placeholder="Rajesh Sharma"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="phone" className="block text-sm font-medium text-slate-300">
+                Phone / WhatsApp Number
+              </label>
+              <div className="mt-1">
+                <input
+                  id="phone"
+                  name="phone"
+                  type="text"
+                  required
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="appearance-none block w-full px-4 py-3 rounded-xl border border-slate-800 bg-slate-950/60 placeholder-slate-500 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                  placeholder="e.g., +919876543210"
                 />
               </div>
             </div>

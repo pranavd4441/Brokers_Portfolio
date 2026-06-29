@@ -50,21 +50,58 @@ export interface PublicProperty {
 
 // ─── SSR: Fetch data ─────────────────────────────────────────────
 async function getProperty(slug: string): Promise<PublicProperty | null> {
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://backend:8000/api';
+  // Use the backend URL directly for server-side fetches (avoids self-looping
+  // through the Next.js proxy which is only available at request time, not build time).
+  const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:8000';
   try {
-    const res = await fetch(`${apiBase}/sharing/public/${slug}/`, {
+    const res = await fetch(`${backendUrl}/api/sharing/resolve/${slug}/`, {
       next: { revalidate: 60 }, // ISR — revalidate every 60s
     });
     if (!res.ok) return null;
-    return res.json();
+
+    // The API returns { property: {...}, branding: {...} }
+    // We need to flatten these into the PublicProperty shape expected by the client.
+    const data = await res.json();
+    const prop = data.property ?? data;          // graceful fallback
+    const branding = data.branding ?? {};
+
+    return {
+      id: prop.id,
+      slug: prop.slug ?? slug,
+      title: prop.title,
+      description: prop.description,
+      price: prop.price,
+      property_type: prop.property_type,
+      status: prop.status,
+      city: prop.city,
+      area: prop.area,
+      address: prop.location_address,
+      bhk: prop.bhk,
+      square_feet: prop.square_feet,
+      amenities: prop.amenities ?? [],
+      images: prop.images ?? [],
+      views: prop.views ?? 0,
+      brand_color: branding.brand_color ?? '#16c784',
+      brand_logo_url: branding.logo_url ?? null,
+      agency_name: branding.name ?? null,
+      broker: {
+        name: branding.broker_name ?? branding.name ?? 'Broker',
+        phone: branding.phone ?? branding.broker_phone ?? '',
+        whatsapp: branding.whatsapp ?? branding.broker_whatsapp ?? branding.phone ?? '',
+        avatar_url: branding.avatar_url ?? null,
+        agency_name: branding.name ?? null,
+        verified: branding.verified ?? false,
+      },
+    } as PublicProperty;
   } catch {
     return null;
   }
 }
 
 // ─── Dynamic metadata ────────────────────────────────────────────
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const property = await getProperty(params.slug);
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const property = await getProperty(slug);
   if (!property) {
     return { title: 'Property Not Found — PropertyOS' };
   }
@@ -98,8 +135,9 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 }
 
 // ─── Page component ──────────────────────────────────────────────
-export default async function PublicPropertyPage({ params }: { params: { slug: string } }) {
-  const property = await getProperty(params.slug);
+export default async function PublicPropertyPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const property = await getProperty(slug);
   if (!property) notFound();
 
   return <PublicPropertyClient property={property} />;

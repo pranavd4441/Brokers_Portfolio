@@ -33,3 +33,11 @@ class AnalyticsEvent(models.Model):
 
     def __str__(self):
         return f"{self.event_type} on Property {self.property_id} at {self.timestamp}"
+
+    def save(self, *args, **kwargs):
+        is_new = self._state.adding
+        super().save(*args, **kwargs)
+        if is_new and self.event_type == 'PAGE_VIEW' and self.property_id:
+            from django.db.models import F
+            from apps.properties.models import Property
+            Property.objects_unfiltered.filter(id=self.property_id).update(views_count=F('views_count') + 1)

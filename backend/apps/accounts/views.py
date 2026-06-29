@@ -34,9 +34,9 @@ class RegistrationView(generics.CreateAPIView):
         return Response(user_serializer.data, status=status.HTTP_201_CREATED)
 
 
-class MeView(generics.RetrieveAPIView):
+class MeView(generics.RetrieveUpdateAPIView):
     """
-    Retrieve the authenticated user's profile and workspace info.
+    Retrieve or update the authenticated user's profile and workspace info.
     """
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -66,3 +66,14 @@ class TenantBrandingView(generics.RetrieveUpdateAPIView):
                 status=status.HTTP_403_FORBIDDEN
             )
         return super().update(request, *args, **kwargs)
+
+
+class TeamListView(generics.ListAPIView):
+    """
+    List all active team members (users) under the active user's tenant.
+    """
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return self.request.user.tenant.users.filter(is_active=True).order_by('name')

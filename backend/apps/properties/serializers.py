@@ -12,6 +12,7 @@ class PropertyImageSerializer(serializers.ModelSerializer):
 class PropertySerializer(serializers.ModelSerializer):
     images = PropertyImageSerializer(many=True, read_only=True)
     created_by_name = serializers.CharField(source='created_by.name', read_only=True)
+    assigned_to_name = serializers.CharField(source='assigned_to.name', read_only=True)
     tenant_name = serializers.CharField(source='tenant.name', read_only=True)
 
     class Meta:
@@ -19,9 +20,10 @@ class PropertySerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'description', 'price', 'property_type', 'status',
             'city', 'area', 'location_address', 'bhk', 'square_feet', 'amenities',
-            'images', 'created_by', 'created_by_name', 'tenant_name', 'created_at', 'updated_at'
+            'images', 'created_by', 'created_by_name', 'assigned_to', 'assigned_to_name',
+            'expires_at', 'views_count', 'leads_count', 'tenant_name', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_by', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_by', 'created_at', 'updated_at', 'views_count', 'leads_count']
 
     def create(self, validated_data):
         # The view will handle injecting created_by and tenant into validated_data

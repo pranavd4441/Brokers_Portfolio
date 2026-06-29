@@ -19,6 +19,14 @@ class PropertyViewSet(viewsets.ModelViewSet):
     serializer_class = PropertySerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        # Ensure tenant context is set from the authenticated user during DRF requests
+        from apps.accounts.tenant_context import set_current_tenant_id
+        if request.user and request.user.is_authenticated:
+            if hasattr(request.user, 'tenant_id') and request.user.tenant_id:
+                set_current_tenant_id(str(request.user.tenant_id))
+
     def get_queryset(self):
         # Property.objects automatically filters by the active tenant ID in thread context
         return Property.objects.all()
@@ -190,3 +198,78 @@ class PropertyViewSet(viewsets.ModelViewSet):
         from .serializers import PropertyImageSerializer
         serializer = PropertyImageSerializer(created_images, many=True)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @decorators.action(
+        detail=True, 
+        methods=['delete'], 
+        url_path='images/(?P<image_id>[^/.]+)'
+    )
+    def delete_image(self, request, pk=None, image_id=None):
+        """
+        Delete a specific image associated with a property.
+        """
+        property_obj = self.get_object()
+        image_obj = get_object_or_404(PropertyImage, property=property_obj, id=image_id)
+        image_obj.delete()
+        log_audit_event(request.user, 'UPDATE', property_obj, {"deleted_image_id": str(image_id)})
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @decorators.action(detail=False, methods=['post'], url_path='generate-ai')
+    def generate_ai(self, request):
+        """
+        Uses Gemini to generate property title, description, headlines, and WhatsApp pitches
+        based on raw input text/bullet points and key metadata features.
+        """
+        raw_notes = request.data.get('raw_notes')
+        if not raw_notes:
+            return Response(
+                {"detail": "The 'raw_notes' field is required."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        property_type = request.data.get('property_type', 'APARTMENT')
+        price = request.data.get('price')
+        bhk = request.data.get('bhk')
+        area = request.data.get('area')
+        city = request.data.get('city')
+
+        from .ai_service import PropertyAIService
+        data = PropertyAIService.generate(
+            raw_notes=raw_notes,
+            property_type=property_type,
+            price=price,
+            bhk=bhk,
+            area=area,
+            city=city
+        )
+        return Response(data, status=status.HTTP_200_OK)
+
+    @decorators.action(detail=True, methods=['get'], url_path='brochure')
+    def brochure(self, request, pk=None):
+        """
+        Generates and returns the URL to download a premium PDF brochure for the property.
+        """
+        property_obj = self.get_object()  # ensures the object belongs to the tenant
+        
+        # Trigger task execution
+        from .tasks import generate_brochure_pdf_task
+        saved_path = generate_brochure_pdf_task(property_obj.id)
+        
+        if not saved_path:
+            return Response(
+                {"detail": "Failed to generate property brochure."}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+            
+        # Get absolute storage URL
+        from django.core.files.storage import default_storage
+        file_url = default_storage.url(saved_path)
+        absolute_url = request.build_absolute_uri(file_url)
+        
+        # Log audit trail for brochure download
+        log_audit_event(request.user, 'VIEW', property_obj, {"action": "download_brochure"})
+        
+        return Response({"brochure_url": absolute_url}, status=status.HTTP_200_OK)
+
+
+

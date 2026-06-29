@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Property Brochure — {{ property.title }}</title>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 0px;
+            @frame content_frame {
+                left: 40pt;
+                right: 40pt;
+                top: 40pt;
+                bottom: 40pt;
+            }
+        }
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #2D3748;
+            line-height: 1.5;
+            background-color: #ffffff;
+        }
+        /* Top Branded Bar */
+        .brand-header {
+            background-color: {{ brand_color }};
+            color: #ffffff;
+            padding: 15pt 20pt;
+            margin-bottom: 25pt;
+            border-radius: 6px;
+        }
+        .brand-title {
+            font-size: 14pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin: 0;
+        }
+        .brand-subtitle {
+            font-size: 9pt;
+            opacity: 0.85;
+            margin-top: 2pt;
+            margin-bottom: 0;
+        }
+        /* Main Title */
+        .property-title {
+            font-size: 22pt;
+            font-weight: bold;
+            color: #1A202C;
+            margin-top: 0;
+            margin-bottom: 5pt;
+            line-height: 1.2;
+        }
+        .property-location {
+            font-size: 11pt;
+            color: #718096;
+            margin-bottom: 20pt;
+        }
+        /* Primary Image Area */
+        .image-container {
+            width: 100%;
+            height: 260px;
+            margin-bottom: 25pt;
+            text-align: center;
+        }
+        .hero-image {
+            width: 100%;
+            height: 260px;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+        /* Key Specs Table Grid */
+        .specs-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25pt;
+        }
+        .specs-table td {
+            width: 50%;
+            padding: 10pt 12pt;
+            border: 1px solid #E2E8F0;
+            font-size: 10pt;
+        }
+        .spec-label {
+            font-weight: bold;
+            color: #4A5568;
+            text-transform: uppercase;
+            font-size: 8pt;
+            letter-spacing: 0.5px;
+        }
+        .spec-value {
+            font-size: 11pt;
+            color: #1A202C;
+            margin-top: 3pt;
+            font-weight: 500;
+        }
+        .price-highlight {
+            font-size: 14pt;
+            font-weight: bold;
+            color: {{ brand_color }};
+        }
+        /* Listing Description */
+        .section-heading {
+            font-size: 12pt;
+            font-weight: bold;
+            color: #1A202C;
+            border-left: 3px solid {{ brand_color }};
+            padding-left: 8pt;
+            margin-top: 0;
+            margin-bottom: 10pt;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .description-text {
+            font-size: 10pt;
+            color: #4A5568;
+            margin-bottom: 25pt;
+            text-align: justify;
+        }
+        /* Amenities List */
+        .amenities-container {
+            margin-bottom: 30pt;
+        }
+        .amenities-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .amenities-table td {
+            width: 33.3%;
+            padding: 6pt 0;
+            font-size: 10pt;
+            color: #4A5568;
+        }
+        .check-icon {
+            color: {{ brand_color }};
+            font-weight: bold;
+            margin-right: 4px;
+        }
+        /* Footer Contact Box */
+        .broker-footer {
+            border-top: 2px solid #E2E8F0;
+            padding-top: 15pt;
+            margin-top: 40pt;
+        }
+        .broker-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .broker-info {
+            font-size: 10pt;
+            color: #4A5568;
+        }
+        .broker-title {
+            font-size: 11pt;
+            font-weight: bold;
+            color: #1A202C;
+        }
+        .broker-cta {
+            text-align: right;
+            font-size: 10pt;
+            font-weight: bold;
+            color: {{ brand_color }};
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Branded Header -->
+    <div class="brand-header">
+        <div class="brand-title">{{ tenant_name }}</div>
+        <div class="brand-subtitle">Premium Real Estate Listings Portfolio</div>
+    </div>
+
+    <!-- Title & Location -->
+    <div class="property-title">{{ property.title }}</div>
+    <div class="property-location">📍 {{ property.area }}, {{ property.city }}</div>
+
+    <!-- Main Listing Photo -->
+    <div class="image-container">
+        {% if image_src %}
+            <img class="hero-image" src="{{ image_src }}" alt="{{ property.title }}">
+        {% else %}
+            <div style="background-color: #F7FAFC; border: 1px dashed #CBD5E0; height: 200px; border-radius: 8px; line-height: 200px; text-align: center; color: #A0AEC0; font-size: 12pt;">
+                Photo Gallery Brochure
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Key Specifications Table Grid -->
+    <table class="specs-table">
+        <tr>
+            <td>
+                <div class="spec-label">Listing Price</div>
+                <div class="spec-value price-highlight">{{ price_str }}</div>
+            </td>
+            <td>
+                <div class="spec-label">Property Type</div>
+                <div class="spec-value">{{ property_type_label }}</div>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <div class="spec-label">Configuration</div>
+                <div class="spec-value">
+                    {% if property.bhk %}
+                        {{ property.bhk }} BHK
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </div>
+            </td>
+            <td>
+                <div class="spec-label">Built-up Area</div>
+                <div class="spec-value">
+                    {% if property.square_feet %}
+                        {{ property.square_feet|floatformat:0 }} Sq. Ft.
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <div class="spec-label">Complete Address</div>
+                <div class="spec-value">
+                    {% if property.location_address %}
+                        {{ property.location_address }}
+                    {% else %}
+                        {{ property.area }}, {{ property.city }}
+                    {% endif %}
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Description -->
+    <div class="section-heading">Listing Description</div>
+    <div class="description-text">{{ property.description|linebreaksbr }}</div>
+
+    <!-- Amenities Checklist -->
+    {% if property.amenities %}
+    <div class="amenities-container">
+        <div class="section-heading">Premium Amenities</div>
+        <table class="amenities-table">
+            {% for amenity in property.amenities %}
+                {% if forloop.counter0|divisibleby:3 %}
+                    <tr>
+                {% endif %}
+                
+                <td>
+                    <span class="check-icon">✓</span> {{ amenity|title }}
+                </td>
+                
+                {% if forloop.counter|divisibleby:3 or forloop.last %}
+                    </tr>
+                {% endif %}
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Broker Branded Footer -->
+    <div class="broker-footer">
+        <table class="broker-table">
+            <tr>
+                <td class="broker-info">
+                    Presented by: <span class="broker-title">PropertyOS Network Partner</span><br>
+                    Tenant Agency: <strong>{{ tenant_name }}</strong>
+                </td>
+                <td class="broker-cta">
+                    Interested? Contact us today!
+                </td>
+            </tr>
+        </table>
+    </div>
+
+</body>
+</html>

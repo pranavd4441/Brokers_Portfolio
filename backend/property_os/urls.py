@@ -17,6 +17,12 @@ urlpatterns = [
     
     # Analytics endpoints
     path('api/analytics/', include('apps.analytics.urls')),
+    
+    # WhatsApp Bot endpoints
+    path('api/whatsapp/', include('apps.whatsapp.urls')),
+    
+    # Lead management endpoints
+    path('api/leads/', include('apps.leads.urls')),
 ]
 
 # Serve media files in development mode (fallback storage)

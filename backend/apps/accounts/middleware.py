@@ -38,13 +38,17 @@ class TenantMiddleware(MiddlewareMixin):
     def process_response(self, request, response):
         # Clear the tenant context after the request is processed to prevent leakage
         token = getattr(request, '_tenant_context_token', None)
-        clear_current_tenant_id(token)
+        if token:
+            clear_current_tenant_id(token)
+            request._tenant_context_token = None
         return response
 
     def process_exception(self, request, exception):
         # Clear the tenant context if an exception occurs
         token = getattr(request, '_tenant_context_token', None)
-        clear_current_tenant_id(token)
+        if token:
+            clear_current_tenant_id(token)
+            request._tenant_context_token = None
         return None
 
 

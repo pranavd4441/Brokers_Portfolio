@@ -2,6 +2,8 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { fetchApi } from '@/lib/api';
+import { toast } from 'sonner';
 
 interface PropertyImage {
   id: string;
@@ -31,6 +33,8 @@ interface PropertyCardProps {
   onShare: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  isSelected?: boolean;
+  onSelectToggle?: () => void;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; cssClass: string }> = {
@@ -39,6 +43,7 @@ const STATUS_CONFIG: Record<string, { label: string; cssClass: string }> = {
   SITE_VISIT:  { label: 'Site Visit',  cssClass: 'os-status-site_visit' },
   BOOKED:      { label: 'Booked',      cssClass: 'os-status-booked' },
   SOLD:        { label: 'Sold',        cssClass: 'os-status-sold' },
+  EXPIRED:     { label: 'Expired',     cssClass: 'os-status-sold !bg-rose-500/20 !text-rose-400 !border-rose-500/30' },
 };
 
 function formatPrice(price: number): string {
@@ -53,9 +58,29 @@ export default function PropertyCard({
   onShare,
   onDuplicate,
   onDelete,
+  isSelected = false,
+  onSelectToggle,
 }: PropertyCardProps) {
   const [imageError, setImageError] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownloadBrochure = async () => {
+    setIsDownloading(true);
+    try {
+      const data = await fetchApi(`/properties/${property.id}/brochure/`);
+      if (data && data.brochure_url) {
+        window.open(data.brochure_url, '_blank');
+        toast.success('Brochure compiled successfully!');
+      } else {
+        toast.error('Failed to generate brochure PDF.');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Error compiling PDF brochure.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   const primaryImage = !imageError && property.images.length > 0
     ? property.images[0].thumbnail_url
@@ -71,7 +96,9 @@ export default function PropertyCard({
     : property.property_type.replace('_', ' ');
 
   return (
-    <article className="os-card property-card flex flex-col overflow-hidden group">
+    <article className={`os-card property-card flex flex-col overflow-hidden group transition-all duration-200 ${
+      isSelected ? 'border-[#16c784]/40 ring-1 ring-[#16c784]/20' : ''
+    }`}>
       {/* ── Image area ──────────────────────────────────────── */}
       <div className="relative h-52 bg-[#0d1117] overflow-hidden flex-shrink-0">
         {primaryImage ? (
@@ -92,8 +119,20 @@ export default function PropertyCard({
         {/* Scrim for readability */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#07090f]/80 via-transparent to-transparent pointer-events-none" />
 
+        {/* Bulk select checkbox */}
+        {onSelectToggle && (
+          <div className="absolute top-3 left-3 z-10">
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={onSelectToggle}
+              className="w-4 h-4 rounded border-[rgba(255,255,255,0.2)] bg-[#07090f]/80 checked:bg-[#16c784] focus:ring-0 transition-all cursor-pointer accent-[#16c784]"
+            />
+          </div>
+        )}
+
         {/* Status badge — top left */}
-        <div className="absolute top-3 left-3">
+        <div className={`absolute top-3 transition-all duration-150 ${onSelectToggle ? 'left-9' : 'left-3'}`}>
           <span className={`os-status ${statusConfig.cssClass}`}>{statusConfig.label}</span>
         </div>
 
@@ -214,11 +253,25 @@ export default function PropertyCard({
           <Link
             href={`/p/${property.id}`}
             target="_blank"
-            className="os-btn-icon"
+            className="os-btn-icon shrink-0"
             title="Preview listing page"
           >
             <span className="text-sm">↗</span>
           </Link>
+
+          {/* Download brochure */}
+          <button
+            onClick={handleDownloadBrochure}
+            disabled={isDownloading}
+            className="os-btn-icon shrink-0 text-[#38bdf8] hover:text-[#52d3ff] border-[#38bdf8]/10 hover:border-[#38bdf8]/30 bg-[#38bdf8]/5 disabled:opacity-50 disabled:cursor-wait"
+            title="Download PDF Brochure"
+          >
+            {isDownloading ? (
+              <span className="inline-block w-3.5 h-3.5 border-2 border-[#38bdf8]/30 border-t-[#38bdf8] rounded-full animate-spin" />
+            ) : (
+              <span className="text-xs">📄</span>
+            )}
+          </button>
         </div>
       </div>
     </article>

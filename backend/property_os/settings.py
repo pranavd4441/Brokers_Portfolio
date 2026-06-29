@@ -38,6 +38,8 @@ INSTALLED_APPS = [
     'apps.sharing',
     'apps.analytics',
     'apps.audit',
+    'apps.whatsapp',
+    'apps.leads',
 ]
 
 MIDDLEWARE = [
@@ -193,3 +195,12 @@ else:
     # Fallback to Local Directory Storage
     DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
     print("[PropertyOS] Object Storage NOT Configured: Using Local Filesystem Fallback.")
+
+# --- WHATSAPP & GEMINI SERVICES CONFIG ---
+WHATSAPP_GATEWAY_PROVIDER = os.getenv('WHATSAPP_GATEWAY_PROVIDER', 'MOCK')
+WHATSAPP_VERIFY_TOKEN = os.getenv('WHATSAPP_VERIFY_TOKEN', 'propertyos-webhook-verify-token')
+TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID', '')
+TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN', '')
+TWILIO_WHATSAPP_NUMBER = os.getenv('TWILIO_WHATSAPP_NUMBER', 'whatsapp:+14155238886')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
+

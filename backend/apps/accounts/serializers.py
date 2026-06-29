@@ -16,7 +16,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'name', 'email', 'phone', 'role', 'tenant', 'created_at']
-        read_only_fields = ['id', 'role', 'tenant', 'created_at']
+        read_only_fields = ['id', 'email', 'role', 'tenant', 'created_at']
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -47,6 +47,7 @@ class RegistrationSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=255, required=True)
     email = serializers.EmailField(required=True)
     password = serializers.CharField(min_length=8, write_only=True, required=True)
+    phone = serializers.CharField(max_length=20, required=True)
 
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():
@@ -58,6 +59,7 @@ class RegistrationSerializer(serializers.Serializer):
         name = validated_data['name']
         email = validated_data['email']
         password = validated_data['password']
+        phone = validated_data['phone']
 
         with transaction.atomic():
             # 1. Create Tenant
@@ -69,7 +71,8 @@ class RegistrationSerializer(serializers.Serializer):
                 password=password,
                 name=name,
                 tenant=tenant,
-                role='OWNER'
+                role='OWNER',
+                phone=phone
             )
             
         return user

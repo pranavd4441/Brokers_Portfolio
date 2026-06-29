@@ -12,6 +12,11 @@ const nextConfig: NextConfig = {
         source: "/api/:path*",
         destination: `${BACKEND_URL}/api/:path*`,
       },
+      {
+        // Proxy Django media files (property images) to avoid CORS issues
+        source: "/media/:path*",
+        destination: `${BACKEND_URL}/media/:path*`,
+      },
     ];
   },
 

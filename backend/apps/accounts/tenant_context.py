@@ -19,6 +19,9 @@ def set_current_tenant_id(tenant_id):
 def clear_current_tenant_id(token=None):
     """Clear the tenant ID or reset it using a token."""
     if token:
-        _active_tenant_id.reset(token)
+        try:
+            _active_tenant_id.reset(token)
+        except RuntimeError:
+            _active_tenant_id.set(None)
     else:
         _active_tenant_id.set(None)

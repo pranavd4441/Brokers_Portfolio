@@ -9,6 +9,7 @@ class Tenant(models.Model):
     brand_color = models.CharField(max_length=7, default='#0F172A')  # Hex code
     whatsapp_default_number = models.CharField(max_length=20, blank=True, null=True)
     subscription_plan = models.CharField(max_length=50, default='FREE')
+    listing_expiry_days = models.IntegerField(default=30)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -57,7 +58,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='users', null=True, blank=True)
     name = models.CharField(max_length=255)
     email = models.EmailField(unique=True)
-    phone = models.CharField(max_length=20, blank=True, null=True)
+    phone = models.CharField(max_length=20, default='', blank=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='BROKER')
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
