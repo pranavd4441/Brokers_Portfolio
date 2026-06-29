@@ -34,10 +34,10 @@ INSTALLED_APPS = [
     # PropertyOS Core Apps
     'apps.accounts',
     'apps.properties',
-    'apps.media',
     'apps.sharing',
     'apps.analytics',
     'apps.audit',
+    'apps.media',
 ]
 
 MIDDLEWARE = [

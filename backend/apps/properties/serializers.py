@@ -23,6 +23,38 @@ class PropertySerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_by', 'created_at', 'updated_at']
 
+    def to_internal_value(self, data):
+        # Create a mutable copy of the input dictionary to allow translations
+        data = data.copy()
+        
+        # 1. Translate 'type' to 'property_type'
+        if 'type' in data and 'property_type' not in data:
+            val = str(data['type']).upper()
+            if 'APARTMENT' in val or 'FLAT' in val:
+                data['property_type'] = 'APARTMENT'
+            elif 'HOUSE' in val or 'VILLA' in val:
+                data['property_type'] = 'VILLA'
+            elif 'PLOT' in val or 'LAND' in val:
+                data['property_type'] = 'PLOT'
+            elif 'COMMERCIAL' in val or 'OFFICE' in val or 'SHOP' in val:
+                data['property_type'] = 'COMMERCIAL'
+            else:
+                data['property_type'] = 'APARTMENT'
+                
+        # 2. Translate 'location' to 'city' and 'area'
+        if 'location' in data:
+            loc = str(data['location'])
+            if 'city' not in data:
+                data['city'] = loc.split(',')[0].strip().split(' ')[0]
+            if 'area' not in data:
+                data['area'] = loc
+                
+        # 3. Translate 'address' to 'location_address'
+        if 'address' in data and 'location_address' not in data:
+            data['location_address'] = data['address']
+            
+        return super().to_internal_value(data)
+
     def create(self, validated_data):
         # The view will handle injecting created_by and tenant into validated_data
         return super().create(validated_data)

@@ -1,6 +1,7 @@
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import (
     RegistrationSerializer, 
     UserSerializer, 
@@ -29,9 +30,16 @@ class RegistrationView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         
-        # Return serialized user info
+        # Generate programmatic JWT tokens using custom serializer to include tenant claims
+        refresh = CustomTokenObtainPairSerializer.get_token(user)
+        
+        # Return user info along with access and refresh tokens
         user_serializer = UserSerializer(user)
-        return Response(user_serializer.data, status=status.HTTP_201_CREATED)
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': user_serializer.data
+        }, status=status.HTTP_201_CREATED)
 
 
 class MeView(generics.RetrieveAPIView):

@@ -10,5 +10,5 @@ urlpatterns = [
     path('', include(router.urls)),
     
     # Public endpoint to resolve a slug (zero-auth)
-    path('resolve/<str:slug>/', PublicPropertyResolverView.as_view(), name='public_slug_resolve'),
+    path('public/<str:slug>/', PublicPropertyResolverView.as_view(), name='public_slug_resolve'),
 ]

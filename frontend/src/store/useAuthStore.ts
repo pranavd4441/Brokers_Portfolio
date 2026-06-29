@@ -83,20 +83,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }),
       });
       
-      // Auto-login after successful registration
-      const loginResponse = await fetchApi('/auth/login/', {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      });
-      
-      const { access, refresh } = loginResponse;
+      const { access, refresh, user } = response;
       authTokens.setTokens(access, refresh);
       
-      // Fetch full user details
-      const fullUser = await fetchApi<UserSession>('/auth/me/');
-      
       set({ 
-        user: fullUser, 
+        user: user as UserSession, 
         isAuthenticated: true, 
         isLoading: false 
       });

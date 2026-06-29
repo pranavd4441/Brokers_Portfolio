@@ -43,10 +43,11 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 
 class RegistrationSerializer(serializers.Serializer):
-    company_name = serializers.CharField(max_length=255, required=True)
+    company_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
     name = serializers.CharField(max_length=255, required=True)
     email = serializers.EmailField(required=True)
     password = serializers.CharField(min_length=8, write_only=True, required=True)
+    phone = serializers.CharField(max_length=20, required=False, allow_blank=True)
 
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():
@@ -54,10 +55,11 @@ class RegistrationSerializer(serializers.Serializer):
         return value.lower()
 
     def create(self, validated_data):
-        company_name = validated_data['company_name']
         name = validated_data['name']
+        company_name = validated_data.get('company_name') or f"{name}'s Workspace"
         email = validated_data['email']
         password = validated_data['password']
+        phone = validated_data.get('phone')
 
         with transaction.atomic():
             # 1. Create Tenant
@@ -69,7 +71,8 @@ class RegistrationSerializer(serializers.Serializer):
                 password=password,
                 name=name,
                 tenant=tenant,
-                role='OWNER'
+                role='OWNER',
+                phone=phone
             )
             
         return user

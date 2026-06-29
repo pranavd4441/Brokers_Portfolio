@@ -21,7 +21,8 @@ class PropertyViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         # Property.objects automatically filters by the active tenant ID in thread context
-        return Property.objects.all()
+        # Optimized to select owner/tenant relationships and prefetch images to resolve N+1 queries
+        return Property.objects.select_related('created_by', 'tenant').prefetch_related('images').all()
 
     def perform_create(self, serializer):
         # Automatically associate listing with the current user and their tenant

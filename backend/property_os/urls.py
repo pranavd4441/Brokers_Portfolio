@@ -17,6 +17,9 @@ urlpatterns = [
     
     # Analytics endpoints
     path('api/analytics/', include('apps.analytics.urls')),
+    
+    # Media endpoints
+    path('api/media/', include('apps.media.urls')),
 ]
 
 # Serve media files in development mode (fallback storage)

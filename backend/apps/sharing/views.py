@@ -44,7 +44,7 @@ class PublicPropertyResolverView(generics.RetrieveAPIView):
     def retrieve(self, request, slug=None, *args, **kwargs):
         # 1. Look up the share link using unfiltered manager
         try:
-            share_link = ShareLink.objects_unfiltered.select_related('property', 'tenant').get(slug=slug)
+            share_link = ShareLink.objects_unfiltered.select_related('property', 'tenant', 'property__created_by').get(slug=slug)
         except ShareLink.DoesNotExist:
             return Response(
                 {"detail": "This listing link is invalid or has been removed."}, 
@@ -65,10 +65,39 @@ class PublicPropertyResolverView(generics.RetrieveAPIView):
         # 4. Serialize models
         property_serializer = PropertySerializer(property_obj)
         tenant_serializer = TenantSerializer(tenant_obj)
+        
+        prop_data = property_serializer.data
+        brand_data = tenant_serializer.data
+        owner = property_obj.created_by
 
+        # Build the flat PublicProperty structure expected by PublicPropertyClient.tsx
         payload = {
-            "property": property_serializer.data,
-            "branding": tenant_serializer.data
+            "id": property_obj.id,
+            "slug": slug,
+            "title": property_obj.title,
+            "description": property_obj.description,
+            "price": float(property_obj.price),
+            "property_type": property_obj.property_type,
+            "status": property_obj.status,
+            "city": property_obj.city,
+            "area": property_obj.area,
+            "address": property_obj.location_address,
+            "bhk": property_obj.bhk,
+            "square_feet": float(property_obj.square_feet) if property_obj.square_feet else None,
+            "amenities": property_obj.amenities,
+            "images": prop_data.get("images", []),
+            "broker": {
+                "name": owner.name if owner else "Agent",
+                "phone": owner.phone if (owner and owner.phone) else (brand_data.get("whatsapp_default_number") or ""),
+                "whatsapp": brand_data.get("whatsapp_default_number") or (owner.phone if owner else ""),
+                "avatar_url": None,
+                "agency_name": brand_data.get("name"),
+                "verified": True
+            },
+            "brand_color": brand_data.get("brand_color", "#16c784"),
+            "brand_logo_url": brand_data.get("logo_url"),
+            "agency_name": brand_data.get("name"),
+            "views": 0
         }
 
         return Response(payload, status=status.HTTP_200_OK)
