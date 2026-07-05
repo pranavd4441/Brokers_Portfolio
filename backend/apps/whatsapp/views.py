@@ -54,8 +54,11 @@ class WhatsAppWebhookView(APIView):
     def _verify_twilio_signature(self, request) -> bool:
         """
         Validates the X-Twilio-Signature header using HMAC-SHA1.
-        Returns True in dev (no auth token configured) to allow local testing.
+        Returns True in dev (no auth token configured or DEBUG is True) to allow local testing.
         """
+        if getattr(settings, 'DEBUG', False):
+            return True  # Skip verification in local dev tunnels
+
         auth_token = getattr(settings, 'TWILIO_AUTH_TOKEN', '')
         if not auth_token:
             return True  # Skip verification in dev/test
@@ -157,9 +160,10 @@ class WhatsAppWebhookView(APIView):
         # 4. Handle Unregistered Contacts
         if not user:
             logger.warning(f"Unregistered WhatsApp contact: {phone_number}")
+            host = request.build_absolute_uri('/')[:-1].replace(':8000', ':3000')
             msg = (
                 f"Hi! Your phone number ({phone_number}) is not registered under any PropertyOS workspace. "
-                "Please sign up at http://localhost:3000/auth/signup and add your phone number to your profile."
+                f"Please sign up at {host}/auth/signup and add your phone number to your profile."
             )
             send_and_log_message(session, msg)
             return Response({"detail": "User unregistered."}, status=status.HTTP_200_OK)
@@ -526,7 +530,8 @@ class WhatsAppWebhookView(APIView):
                             else f"₹{price / 100_000:.2f} L" if price >= 100_000
                             else f"₹{price:,.2f}"
                         )
-                        public_url = f"http://localhost:3000/p/{share_link.slug}"
+                        host = request.build_absolute_uri('/')[:-1].replace(':8000', ':3000')
+                        public_url = f"{host}/p/{share_link.slug}"
                         
                         msg = (
                             "Got it! Your property listing has been successfully published 🚀\n\n"
@@ -534,7 +539,7 @@ class WhatsAppWebhookView(APIView):
                             f"💰 Price: {formatted_price}\n"
                             f"📍 Location: {area}, {city}\n\n"
                             f"👉 *View Public Listing:* {public_url}\n"
-                            "👉 *Manage listings & leads:* http://localhost:3000/dashboard"
+                            f"👉 *Manage listings & leads:* {host}/dashboard"
                         )
                         send_and_log_message(session, msg)
 

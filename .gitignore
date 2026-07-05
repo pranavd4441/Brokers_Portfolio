@@ -56,3 +56,6 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+
+# External tools and binaries
+ngrok.zip

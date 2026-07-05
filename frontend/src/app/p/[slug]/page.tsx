@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import PublicPropertyClient from './PublicPropertyClient';
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -139,6 +139,10 @@ export default async function PublicPropertyPage({ params }: { params: Promise<{
   const { slug } = await params;
   const property = await getProperty(slug);
   if (!property) notFound();
+
+  if (property.slug !== slug) {
+    redirect(`/p/${property.slug}`);
+  }
 
   return <PublicPropertyClient property={property} />;
 }

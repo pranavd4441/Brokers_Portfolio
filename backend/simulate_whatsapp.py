@@ -71,9 +71,8 @@ def main():
     print(f"\nSimulating WhatsApp Chat for {user.name} ({clean_phone})...")
     print_help()
 
-    # Track last message ID we've displayed
-    last_msg = ConversationMessage.objects.filter(session=session).order_safe_by('id').last() if hasattr(ConversationMessage.objects, 'order_safe_by') else ConversationMessage.objects.filter(session=session).order_by('id').last()
-    last_msg_id = last_msg.id if last_msg else 0
+    last_msg = ConversationMessage.objects.filter(session=session).order_by('timestamp').last()
+    last_timestamp = last_msg.timestamp if last_msg else None
 
     client = APIClient()
 
@@ -94,12 +93,27 @@ def main():
                 print("Exiting simulator.")
                 break
 
-            # Send payload to webhook endpoint
-            payload = {
-                "From": f"whatsapp:{clean_phone}",
-                "Body": user_input,
-                "NumMedia": "0"
-            }
+            if user_input.lower().startswith("image"):
+                url = user_input.replace("image:", "").replace("image", "").strip()
+                # Provide a default real estate image if they just type "image"
+                if not url:
+                    url = "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80"
+                
+                print(f"\n[Simulating Uploading Image: {url}]")
+                payload = {
+                    "From": f"whatsapp:{clean_phone}",
+                    "Body": "",
+                    "NumMedia": "1",
+                    "MediaUrl0": url,
+                    "MediaContentType0": "image/jpeg"
+                }
+            else:
+                # Send text payload to webhook endpoint
+                payload = {
+                    "From": f"whatsapp:{clean_phone}",
+                    "Body": user_input,
+                    "NumMedia": "0"
+                }
             
             # Post to endpoint
             response = client.post('/api/whatsapp/webhook/', payload)
@@ -109,15 +123,18 @@ def main():
                 continue
 
             # Fetch new OUTBOUND messages
-            new_outbound = ConversationMessage.objects.filter(
+            qs = ConversationMessage.objects.filter(
                 session=session,
-                direction='OUTBOUND',
-                id__gt=last_msg_id
-            ).order_by('id')
+                direction='OUTBOUND'
+            )
+            if last_timestamp:
+                qs = qs.filter(timestamp__gt=last_timestamp)
+            new_outbound = qs.order_by('timestamp')
 
             for msg in new_outbound:
                 print(f"\n\033[92mPropertyOS Bot:\033[0m\n{msg.body}")
-                last_msg_id = max(last_msg_id, msg.id)
+                if not last_timestamp or msg.timestamp > last_timestamp:
+                    last_timestamp = msg.timestamp
 
             session.refresh_from_db()
 

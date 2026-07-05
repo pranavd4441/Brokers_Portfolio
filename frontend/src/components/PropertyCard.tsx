@@ -25,6 +25,7 @@ interface Property {
   square_feet: number | null;
   images: PropertyImage[];
   created_at: string;
+  slug?: string;
 }
 
 interface PropertyCardProps {
@@ -251,7 +252,7 @@ export default function PropertyCard({
 
           {/* View page */}
           <Link
-            href={`/p/${property.id}`}
+            href={`/p/${property.slug || property.id}`}
             target="_blank"
             className="os-btn-icon shrink-0"
             title="Preview listing page"

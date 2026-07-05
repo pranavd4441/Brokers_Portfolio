@@ -36,6 +36,7 @@ interface Property {
   expires_at?: string;
   views_count?: number;
   leads_count?: number;
+  slug?: string;
 }
 
 interface DashboardMetrics {
@@ -717,7 +718,7 @@ export default function DashboardPage() {
                                     💬
                                   </button>
                                   <Link
-                                    href={`/p/${p.id}`}
+                                    href={`/p/${p.slug || p.id}`}
                                     target="_blank"
                                     className="w-6 h-6 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] flex items-center justify-center text-[10px] text-[#8892aa] hover:text-[#f0f4ff] transition-colors"
                                     title="View listing"

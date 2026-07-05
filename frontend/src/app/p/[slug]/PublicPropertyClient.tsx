@@ -291,8 +291,11 @@ export default function PublicPropertyClient({ property }: { property: PublicPro
   // Function to execute the action after identification
   const executeAction = useCallback((action: 'whatsapp' | 'call', name: string, phone: string) => {
     if (action === 'whatsapp') {
-      const text = encodeURIComponent(`Hi! I'm interested in: ${property.title}\n${window.location.href}`);
-      window.open(`https://wa.me/${property.broker.whatsapp}?text=${text}`, '_blank');
+      const siteUrl = window.location.origin;
+      const shareUrl = `${siteUrl}/p/${property.slug}`;
+      const text = encodeURIComponent(`Hi! I'm interested in: ${property.title}\n${shareUrl}`);
+      const cleanedPhone = property.broker.whatsapp.replace(/\D/g, '');
+      window.open(`https://wa.me/${cleanedPhone}?text=${text}`, '_blank');
       
       // Log click with buyer details
       fetch('/api/analytics/log/', {
@@ -407,10 +410,12 @@ export default function PublicPropertyClient({ property }: { property: PublicPro
             {/* Share button */}
             <button
               onClick={() => {
+                const siteUrl = window.location.origin;
+                const shareUrl = `${siteUrl}/p/${property.slug}`;
                 if (navigator.share) {
-                  navigator.share({ title: property.title, url: window.location.href });
+                  navigator.share({ title: property.title, url: shareUrl });
                 } else {
-                  navigator.clipboard.writeText(window.location.href);
+                  navigator.clipboard.writeText(shareUrl);
                 }
               }}
               className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)] text-[#8892aa] hover:text-[#f0f4ff] text-xs font-medium transition-all"

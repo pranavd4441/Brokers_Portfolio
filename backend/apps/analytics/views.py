@@ -107,7 +107,8 @@ class PublicEventLogView(generics.CreateAPIView):
                 # Resolve public link in main thread (thread-safe database access)
                 share_link = property_obj.share_links.first()
                 slug = share_link.slug if share_link else str(property_obj.id)
-                public_url = f"http://localhost:3000/p/{slug}"
+                host = request.build_absolute_uri('/')[:-1].replace(':8000', ':3000')
+                public_url = f"{host}/p/{slug}"
                 
                 event_label = "WhatsApp Click" if event_type == 'WHATSAPP_CLICK' else "Phone Call Click"
                 
