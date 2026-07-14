@@ -11,3 +11,7 @@ app.config_from_object('django.conf:settings', namespace='CELERY')
 
 # Discover tasks in all registered Django apps
 app.autodiscover_tasks()
+
+# Register logging propagation hooks
+import property_os.celery_logging
+

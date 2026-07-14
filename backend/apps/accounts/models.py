@@ -63,6 +63,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     
+    # MFA security features
+    mfa_enabled = models.BooleanField(default=False)
+    mfa_secret = models.CharField(max_length=32, blank=True, null=True)
+    mfa_type = models.CharField(max_length=20, default='TOTP')
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -73,3 +78,79 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return f"{self.name} ({self.email}) - {self.role}"
+
+    def save(self, *args, **kwargs):
+        is_new = self._state.adding
+        old_password = None
+        if not is_new:
+            try:
+                # Fetch unhashed password from DB using direct query (bypass tenant manager)
+                old_password = User.objects.only('password').get(pk=self.pk).password
+            except User.DoesNotExist:
+                pass
+
+        super().save(*args, **kwargs)
+
+        # Write the password to history if it is a new user or the hash has changed
+        if is_new or old_password != self.password:
+            PasswordHistory.objects.create(user=self, password_hash=self.password)
+
+
+class UserSession(models.Model):
+    """
+    Model to track user device logins, active sessions, and metadata.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sessions')
+    token_jti = models.CharField(max_length=255, unique=True, db_index=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=512, null=True, blank=True)
+    browser = models.CharField(max_length=100, null=True, blank=True)
+    os = models.CharField(max_length=100, null=True, blank=True)
+    city = models.CharField(max_length=100, null=True, blank=True)
+    login_time = models.DateTimeField(auto_now_add=True)
+    last_activity = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"Session for {self.user.email} ({self.browser}/{self.os}) from {self.ip_address}"
+
+
+class PasswordHistory(models.Model):
+    """
+    Model to log previous password hashes to prevent quick password reuse.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_histories')
+    password_hash = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class MFARecoveryCode(models.Model):
+    """
+    Hashed backup recovery codes in case the user loses their MFA authenticator device.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='mfa_recovery_codes')
+    code_hash = models.CharField(max_length=255)
+    is_used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class MFATicket(models.Model):
+    """
+    Short-lived ticket used in login workflow transitions when verification is required.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_used = models.BooleanField(default=False)
+
+    def is_expired(self):
+        from django.utils import timezone
+        from datetime import timedelta
+        return timezone.now() > self.created_at + timedelta(minutes=5)
+

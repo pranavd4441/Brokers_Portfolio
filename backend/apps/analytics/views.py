@@ -11,9 +11,8 @@ from apps.properties.models import Property
 
 logger = logging.getLogger(__name__)
 
-class PublicAnalyticsThrottle(UserRateThrottle):
-    rate = '60/minute'
-
+from property_os.throttling import PublicRateThrottle
+from property_os.feature_flags import FeatureFlagService
 
 class PublicEventLogView(generics.CreateAPIView):
     """
@@ -21,9 +20,14 @@ class PublicEventLogView(generics.CreateAPIView):
     Extracts IP hash, device type, and browser signature directly from request headers.
     """
     permission_classes = [permissions.AllowAny]
-    throttle_classes = [PublicAnalyticsThrottle]
+    throttle_classes = [PublicRateThrottle]
 
     def post(self, request, *args, **kwargs):
+        if not FeatureFlagService.is_enabled("ENABLE_ANALYTICS"):
+            return Response(
+                {"detail": "Analytics features are currently disabled."},
+                status=status.HTTP_403_FORBIDDEN
+            )
         property_id = request.data.get('property')
         event_type = request.data.get('event_type')
 
@@ -105,7 +109,8 @@ class PublicEventLogView(generics.CreateAPIView):
                 broker_phone = broker.phone
                 
                 # Resolve public link in main thread (thread-safe database access)
-                share_link = property_obj.share_links.first()
+                from apps.sharing.models import ShareLink
+                share_link = ShareLink.objects_unfiltered.filter(property=property_obj).first()
                 slug = share_link.slug if share_link else str(property_obj.id)
                 host = request.build_absolute_uri('/')[:-1].replace(':8000', ':3000')
                 public_url = f"{host}/p/{slug}"
@@ -145,8 +150,14 @@ class DashboardMetricsView(generics.RetrieveAPIView):
     Isolated by Tenant.
     """
     permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [UserRateThrottle]
 
     def get(self, request, *args, **kwargs):
+        if not FeatureFlagService.is_enabled("ENABLE_ANALYTICS"):
+            return Response(
+                {"detail": "Analytics features are currently disabled."},
+                status=status.HTTP_403_FORBIDDEN
+            )
         # Property.objects automatically isolates queries to current tenant
         properties = Property.objects.all()
         total_properties = properties.count()

@@ -57,6 +57,13 @@ class Property(TenantModel):
     class Meta:
         verbose_name_plural = "Properties"
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['city', 'area']),
+            models.Index(fields=['price']),
+            models.Index(fields=['property_type']),
+            models.Index(fields=['created_at']),
+        ]
 
     def __str__(self):
         return f"{self.title} - {self.city} - {self.price}"
@@ -66,6 +73,7 @@ class Property(TenantModel):
         from datetime import timedelta
         
         # Auto-populate expires_at on creation if not set
+        is_new = self._state.adding or not self.pk
         if not self.pk and not self.expires_at:
             expiry_days = 30
             # Since TenantModel's save() handles tenant context, we can check get_current_tenant_id()
@@ -84,3 +92,16 @@ class Property(TenantModel):
             self.expires_at = timezone.now() + timedelta(days=expiry_days)
             
         super().save(*args, **kwargs)
+        
+        if is_new:
+            from apps.sharing.models import ShareLink
+            try:
+                # Use objects_unfiltered to check first to avoid any leakage/filtering issues
+                if not ShareLink.objects_unfiltered.filter(property=self).exists():
+                    ShareLink.objects.create(
+                        property=self,
+                        tenant=self.tenant,
+                        created_by=self.created_by or self.assigned_to
+                    )
+            except Exception:
+                pass

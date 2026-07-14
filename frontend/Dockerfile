@@ -14,9 +14,15 @@ RUN npm install
 # Copy application files
 COPY . /app/
 
+# Build Next.js app for production
+RUN npm run build
+
 # Expose port
 EXPOSE 3000
 
 # Next.js defaults to port 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+
+# Start the built Next.js application
+CMD ["npm", "run", "start"]

@@ -41,6 +41,9 @@ class ShareLinkViewSet(viewsets.ModelViewSet):
         )
 
 
+from property_os.throttling import PublicRateThrottle
+from property_os.feature_flags import FeatureFlagService
+
 class PublicPropertyResolverView(generics.RetrieveAPIView):
     """
     Public (zero-auth) endpoint to resolve a short slug.
@@ -48,8 +51,14 @@ class PublicPropertyResolverView(generics.RetrieveAPIView):
     Uses objects_unfiltered because the visitor has no tenant_id context.
     """
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [PublicRateThrottle]
 
     def retrieve(self, request, slug=None, *args, **kwargs):
+        if not FeatureFlagService.is_enabled("ENABLE_PUBLIC_SHARING"):
+            return Response(
+                {"detail": "Public sharing is currently disabled."},
+                status=status.HTTP_403_FORBIDDEN
+            )
         # 1. Look up the share link using unfiltered manager
         try:
             share_link = ShareLink.objects_unfiltered.select_related(

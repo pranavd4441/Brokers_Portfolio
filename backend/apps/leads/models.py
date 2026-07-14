@@ -37,6 +37,11 @@ class Lead(TenantModel):
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['phone']),
+            models.Index(fields=['created_at']),
+        ]
 
     def __str__(self):
         return f"{self.buyer_name} ({self.phone}) - {self.status}"

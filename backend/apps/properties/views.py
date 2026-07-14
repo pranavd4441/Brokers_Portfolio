@@ -10,6 +10,7 @@ from apps.media.models import PropertyImage
 from apps.media.utils import process_and_store_image
 from apps.media.tasks import process_image_async
 from apps.audit.utils import log_audit_event
+from property_os.feature_flags import FeatureFlagService
 
 class PropertyViewSet(viewsets.ModelViewSet):
     """
@@ -28,8 +29,11 @@ class PropertyViewSet(viewsets.ModelViewSet):
                 set_current_tenant_id(str(request.user.tenant_id))
 
     def get_queryset(self):
-        # Property.objects automatically filters by the active tenant ID in thread context
-        return Property.objects.all()
+        return Property.objects.select_related(
+            'created_by', 'assigned_to', 'tenant'
+        ).prefetch_related(
+            'images', 'share_links'
+        )
 
     def perform_create(self, serializer):
         # Automatically associate listing with the current user and their tenant
@@ -125,6 +129,12 @@ class PropertyViewSet(viewsets.ModelViewSet):
         Upload and associate multiple images to a property.
         Supports both synchronous processing (default) and async offloading.
         """
+        if not FeatureFlagService.is_enabled("ENABLE_IMAGE_PROCESSING"):
+            return Response(
+                {"detail": "Image processing features are currently disabled."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         property_obj = self.get_object()
         uploaded_files = request.FILES.getlist('images')
         
@@ -136,6 +146,10 @@ class PropertyViewSet(viewsets.ModelViewSet):
 
         created_images = []
         async_processing = request.query_params.get('async', 'false').lower() == 'true'
+        if async_processing and not FeatureFlagService.is_enabled("ENABLE_CELERY"):
+            # Fall back to synchronous in-request processing if Celery is disabled
+            async_processing = False
+
 
         # Get the starting display order
         last_img = property_obj.images.order_by('-display_order').first()
@@ -145,17 +159,18 @@ class PropertyViewSet(viewsets.ModelViewSet):
             display_order = start_order + idx
             
             if async_processing:
-                # 1. Asynchronous processing via Celery
-                # Save file to a temporary location
-                temp_dir = tempfile.gettempdir()
-                temp_file_suffix = f"_{file_obj.name}"
-                with tempfile.NamedTemporaryFile(dir=temp_dir, suffix=temp_file_suffix, delete=False) as temp_file:
-                    for chunk in file_obj.chunks():
-                        temp_file.write(chunk)
-                    temp_path = temp_file.name
+                # 1. Asynchronous processing via Celery (In-Memory base64)
+                import base64
+                file_bytes = file_obj.read()
+                base64_data = base64.b64encode(file_bytes).decode('utf-8')
                 
-                # Dispatch task to Celery worker
-                process_image_async.delay(str(property_obj.id), temp_path, display_order)
+                # Dispatch task to Celery worker in memory (no shared file paths)
+                process_image_async.delay(
+                    str(property_obj.id),
+                    base64_data,
+                    file_obj.name,
+                    display_order
+                )
             else:
                 # 2. Synchronous processing in-request
                 try:
@@ -220,6 +235,12 @@ class PropertyViewSet(viewsets.ModelViewSet):
         Uses Gemini to generate property title, description, headlines, and WhatsApp pitches
         based on raw input text/bullet points and key metadata features.
         """
+        if not FeatureFlagService.is_enabled("ENABLE_AI"):
+            return Response(
+                {"detail": "AI features are currently disabled."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         raw_notes = request.data.get('raw_notes')
         if not raw_notes:
             return Response(

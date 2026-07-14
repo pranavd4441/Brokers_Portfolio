@@ -31,17 +31,11 @@ class PropertySerializer(serializers.ModelSerializer):
         if not share_link:
             from apps.sharing.models import ShareLink
             try:
-                # Use objects_unfiltered to check first
+                # Fallback check unfiltered without write operations
                 share_link = ShareLink.objects_unfiltered.filter(property=obj).first()
-                if not share_link:
-                    share_link = ShareLink.objects.create(
-                        property=obj,
-                        tenant=obj.tenant,
-                        created_by=obj.created_by or obj.assigned_to
-                    )
             except Exception:
                 return None
-        return share_link.slug
+        return share_link.slug if share_link else None
 
     def create(self, validated_data):
         # The view will handle injecting created_by and tenant into validated_data

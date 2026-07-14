@@ -135,11 +135,7 @@ def test_whatsapp_realtime_lead_alerts(mock_gateway_fn, api_client, test_setup):
         city="Mumbai",
         area="Bandra West"
     )
-    share_link = ShareLink.objects.create(
-        property=property_obj,
-        created_by=broker,
-        tenant=tenant
-    )
+    share_link = property_obj.share_links.first()
 
     # 2. Trigger a WHATSAPP_CLICK analytics event via public endpoint
     log_url = reverse('analytics_log_event')

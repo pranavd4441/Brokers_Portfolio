@@ -26,3 +26,6 @@ RUN mkdir -p /app/static /app/media
 
 # Expose port
 EXPOSE 8000
+
+# Start command using gunicorn
+CMD ["gunicorn", "property_os.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "4"]
