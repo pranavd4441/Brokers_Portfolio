@@ -4,7 +4,7 @@ services:
     env: docker
     rootDir: backend
     dockerfilePath: Dockerfile
-    dockerContext: .  # Explicitly sets the build context relative to rootDir
+    dockerContext: .
     plan: free
     dockerCommand: sh -c "python manage.py migrate && gunicorn property_os.wsgi:application --bind 0.0.0.0:10000 --workers 4"
     healthCheckPath: /api/health/
@@ -24,22 +24,23 @@ services:
       - key: PORT
         value: 10000
 
-  - type: worker
-    name: propertyos-celery-worker
-    env: docker
-    rootDir: backend
-    dockerfilePath: Dockerfile
-    dockerContext: .  # Explicitly sets the build context relative to rootDir
-    plan: free
-    dockerCommand: celery -A property_os worker --loglevel=info
-    envVars:
-      - key: DJANGO_ENVIRONMENT
-        value: production
-      - key: DJANGO_SETTINGS_MODULE
-        value: property_os.settings
-      - key: SECRET_PROVIDER
-        value: env
-      - key: DATABASE_URL
-        sync: false
-      - key: REDIS_URL
-        sync: false
+# To restore the Celery Background Worker when you upgrade to a paid Render plan:
+#   - type: worker
+#     name: propertyos-celery-worker
+#     env: docker
+#     rootDir: backend
+#     dockerfilePath: Dockerfile
+#     dockerContext: .
+#     plan: starter  # Paid plan required for Background Workers
+#     dockerCommand: celery -A property_os worker --loglevel=info
+#     envVars:
+#       - key: DJANGO_ENVIRONMENT
+#         value: production
+#       - key: DJANGO_SETTINGS_MODULE
+#         value: property_os.settings
+#       - key: SECRET_PROVIDER
+#         value: env
+#       - key: DATABASE_URL
+#         sync: false
+#       - key: REDIS_URL
+#         sync: false
