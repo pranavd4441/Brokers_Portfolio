@@ -4,6 +4,10 @@ from celery import Celery
 # Set default Django settings module
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'property_os.settings')
 
+# Validate required production/staging environment variables at runtime startup
+from property_os.config import validate_environment
+validate_environment()
+
 app = Celery('property_os')
 
 # Read config from Django settings using CELERY_ namespace

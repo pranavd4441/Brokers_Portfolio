@@ -10,9 +10,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Load environment variables from .env file if it exists
 load_dotenv(os.path.join(BASE_DIR.parent, '.env'))
 
-# Validate required variables at startup
-from property_os.config import validate_environment
-validate_environment()
+# Validate required variables at startup will be executed at WSGI/Celery runtime entrypoints.
 
 # Sentry SDK Integration
 import sentry_sdk
