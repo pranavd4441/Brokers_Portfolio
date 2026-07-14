@@ -3,6 +3,7 @@ services:
     name: propertyos-backend
     env: docker
     dockerfilePath: backend/Dockerfile
+    dockerContext: backend
     plan: free
     dockerCommand: sh -c "python manage.py migrate && gunicorn property_os.wsgi:application --bind 0.0.0.0:10000 --workers 4"
     healthCheckPath: /api/health/
@@ -14,9 +15,9 @@ services:
       - key: SECRET_PROVIDER
         value: env
       - key: DATABASE_URL
-        sync: false  # Render will prompt you to enter your existing database connection string
+        sync: false
       - key: REDIS_URL
-        sync: false  # Render will prompt you to enter your existing Redis connection string
+        sync: false
       - key: DJANGO_SECRET_KEY
         generateValue: true
       - key: PORT
@@ -26,6 +27,7 @@ services:
     name: propertyos-celery-worker
     env: docker
     dockerfilePath: backend/Dockerfile
+    dockerContext: backend
     plan: free
     dockerCommand: celery -A property_os worker --loglevel=info
     envVars:
