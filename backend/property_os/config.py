@@ -1,48 +1,92 @@
 import os
+import logging
 from django.core.exceptions import ImproperlyConfigured
+
+logger = logging.getLogger(__name__)
+
 
 def validate_environment():
     """
-    Validates required environment variables at startup.
-    Fails fast in production/staging environments.
+    Validates environment variables at runtime startup.
+
+    Three-tier strategy:
+    - CORE: Application cannot function at all without these. Hard block.
+    - IMPORTANT: Core DB/auth infrastructure. Hard block in production.
+    - OPTIONAL FEATURES: Gracefully degrade if missing. Warn only.
+
+    This function is called from wsgi.py and celery.py only — never at
+    import time — so it never runs during Docker build steps like collectstatic.
     """
     env = os.getenv('DJANGO_ENVIRONMENT', 'development').lower()
     is_prod_or_staging = env in ('production', 'staging')
 
-    # Basic essential settings for all envs
-    required_basics = {
-        'DJANGO_SECRET_KEY': 'SECRET_KEY',
+    # -----------------------------------------------------------------------
+    # TIER 1: Core — required in ALL environments (blocks startup everywhere)
+    # -----------------------------------------------------------------------
+    core_required = {
+        'DJANGO_SECRET_KEY': 'DJANGO_SECRET_KEY',
     }
 
-    # Production-only critical settings
-    required_production = {
-        'DATABASE_URL': 'DATABASE_URL',
-        'JWT_SECRET_KEY': 'JWT_SECRET',
-        'SENTRY_DSN': 'SENTRY_DSN',
-        'REDIS_URL': 'REDIS_URL',
-        'AWS_ACCESS_KEY_ID': 'STORAGE_KEYS (AWS_ACCESS_KEY_ID)',
-        'AWS_SECRET_ACCESS_KEY': 'STORAGE_KEYS (AWS_SECRET_ACCESS_KEY)',
-        'AWS_STORAGE_BUCKET_NAME': 'STORAGE_KEYS (AWS_STORAGE_BUCKET_NAME)',
-        'WHATSAPP_ACCESS_TOKEN': 'WHATSAPP_KEYS (WHATSAPP_ACCESS_TOKEN)',
-        'WHATSAPP_PHONE_NUMBER_ID': 'WHATSAPP_KEYS (WHATSAPP_PHONE_NUMBER_ID)',
-        'GEMINI_API_KEY': 'GEMINI_API_KEY',
-    }
+    missing_core = [
+        logical_name
+        for env_var, logical_name in core_required.items()
+        if not os.getenv(env_var)
+    ]
 
-    missing_basics = [logical_name for env_var, logical_name in required_basics.items() if not os.getenv(env_var)]
-    missing_prod = [logical_name for env_var, logical_name in required_production.items() if not os.getenv(env_var)]
-
-    if missing_basics:
-        error_msg = f"Critical environment variables are missing at startup: {', '.join(missing_basics)}. The application cannot start."
-        raise ImproperlyConfigured(error_msg)
-
-    # SECURE_KEY shouldn't be the default insecure key in prod
-    secret_key = os.getenv('DJANGO_SECRET_KEY', '')
-    if is_prod_or_staging and (not secret_key or secret_key.startswith('django-insecure')):
-        raise ImproperlyConfigured("Insecure DJANGO_SECRET_KEY configured in production/staging environment.")
-
-    if is_prod_or_staging and missing_prod:
-        error_msg = (
-            f"Production environment validation failed. Missing required environment variables: {', '.join(missing_prod)}. "
-            "Application startup aborted to prevent unconfigured operations in production/staging."
+    if missing_core:
+        raise ImproperlyConfigured(
+            f"Critical environment variables are missing: {', '.join(missing_core)}. "
+            "The application cannot start."
         )
-        raise ImproperlyConfigured(error_msg)
+
+    # Reject the insecure fallback key in production/staging
+    secret_key = os.getenv('DJANGO_SECRET_KEY', '')
+    if is_prod_or_staging and secret_key.startswith('django-insecure'):
+        raise ImproperlyConfigured(
+            "Insecure DJANGO_SECRET_KEY is set in a production/staging environment. "
+            "Generate a secure key and set it as an environment variable."
+        )
+
+    # -----------------------------------------------------------------------
+    # TIER 2: Important — required in production/staging (hard block)
+    # These enable the fundamental runtime: database and JWT auth.
+    # -----------------------------------------------------------------------
+    production_required = {
+        'DATABASE_URL': 'DATABASE_URL',
+        'JWT_SECRET_KEY': 'JWT_SECRET_KEY',
+    }
+
+    if is_prod_or_staging:
+        missing_production = [
+            logical_name
+            for env_var, logical_name in production_required.items()
+            if not os.getenv(env_var)
+        ]
+        if missing_production:
+            raise ImproperlyConfigured(
+                f"Production startup aborted. Missing required environment variables: "
+                f"{', '.join(missing_production)}."
+            )
+
+    # -----------------------------------------------------------------------
+    # TIER 3: Optional features — warn if missing, never block startup.
+    # These enable specific product features and degrade gracefully when absent.
+    # -----------------------------------------------------------------------
+    optional_features = {
+        'REDIS_URL':                  'Redis / Celery (async tasks will run synchronously)',
+        'AWS_ACCESS_KEY_ID':          'Object Storage / S3 (media uploads use local disk fallback)',
+        'AWS_SECRET_ACCESS_KEY':      'Object Storage / S3 (media uploads use local disk fallback)',
+        'AWS_STORAGE_BUCKET_NAME':    'Object Storage / S3 (media uploads use local disk fallback)',
+        'WHATSAPP_ACCESS_TOKEN':      'WhatsApp Integration (messaging disabled)',
+        'WHATSAPP_PHONE_NUMBER_ID':   'WhatsApp Integration (messaging disabled)',
+        'GEMINI_API_KEY':             'Gemini AI (AI features disabled)',
+        'SENTRY_DSN':                 'Sentry (error tracking disabled)',
+    }
+
+    if is_prod_or_staging:
+        for env_var, description in optional_features.items():
+            if not os.getenv(env_var):
+                logger.warning(
+                    "[PropertyOS] Optional feature not configured: %s — %s",
+                    env_var, description
+                )
