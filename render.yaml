@@ -6,8 +6,6 @@ services:
     dockerfilePath: Dockerfile
     dockerContext: .
     plan: free
-    preDeployCommand: python manage.py migrate  # Run migrations in a pre-deploy container
-    dockerCommand: gunicorn property_os.wsgi:application --bind 0.0.0.0:10000 --workers 4
     healthCheckPath: /api/health/
     envVars:
       - key: DJANGO_ENVIRONMENT
@@ -22,5 +20,3 @@ services:
         sync: false
       - key: DJANGO_SECRET_KEY
         generateValue: true
-      - key: PORT
-        value: 10000
