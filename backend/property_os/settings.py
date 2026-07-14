@@ -8,15 +8,6 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 import sys
-print("--- DIAGNOSTIC BUILD INFO ---")
-print("sys.path:", sys.path)
-print("BASE_DIR:", BASE_DIR)
-try:
-    print("Contents of BASE_DIR:", os.listdir(str(BASE_DIR)))
-except Exception as e:
-    print("Failed to list BASE_DIR:", e)
-print("-----------------------------")
-
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
