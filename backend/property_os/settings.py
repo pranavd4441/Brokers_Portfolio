@@ -132,11 +132,16 @@ WSGI_APPLICATION = 'property_os.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
+_DATABASE_URL = os.getenv('DATABASE_URL', f'sqlite:///{BASE_DIR}/db.sqlite3')
+_IS_POSTGRES = _DATABASE_URL.startswith(('postgres://', 'postgresql://'))
+
 DATABASES = {
     'default': dj_database_url.config(
-        default=os.getenv('DATABASE_URL', f'sqlite:///{BASE_DIR}/db.sqlite3'),
+        default=_DATABASE_URL,
         conn_max_age=600,
-        ssl_require=not DEBUG
+        # ssl_require must only be set for PostgreSQL — SQLite has no SSL support
+        # and passing sslmode crashes with TypeError on connection.
+        ssl_require=_IS_POSTGRES and not DEBUG
     )
 }
 
