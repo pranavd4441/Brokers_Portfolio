@@ -1,15 +1,4 @@
-databases:
-  - name: propertyos-db
-    databaseName: property_os
-    user: property_os_user
-    plan: free
-
 services:
-  - type: redis
-    name: propertyos-redis
-    plan: free
-    ipAllowList: []  # Restrict external access; accessible only within the Render network
-
   - type: web
     name: propertyos-backend
     env: docker
@@ -25,14 +14,9 @@ services:
       - key: SECRET_PROVIDER
         value: env
       - key: DATABASE_URL
-        fromDatabase:
-          name: propertyos-db
-          property: connectionString
+        sync: false  # Render will prompt you to enter your existing database connection string
       - key: REDIS_URL
-        fromService:
-          type: redis
-          name: propertyos-redis
-          property: connectionString
+        sync: false  # Render will prompt you to enter your existing Redis connection string
       - key: DJANGO_SECRET_KEY
         generateValue: true
       - key: PORT
@@ -52,11 +36,6 @@ services:
       - key: SECRET_PROVIDER
         value: env
       - key: DATABASE_URL
-        fromDatabase:
-          name: propertyos-db
-          property: connectionString
+        sync: false
       - key: REDIS_URL
-        fromService:
-          type: redis
-          name: propertyos-redis
-          property: connectionString
+        sync: false
