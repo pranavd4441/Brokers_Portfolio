@@ -35,9 +35,11 @@ htmlcov/
 # Local databases and media
 backend/db.sqlite3
 db.sqlite3
+# IMPORTANT: Only ignore the user-uploaded media directory at the backend root,
+# NOT apps/media/ (which is a Django app and must be committed).
 backend/media/
-media/
-static/
+/media/
+/static/
 
 # Temporary and test files
 backend/test_image_upload.py
