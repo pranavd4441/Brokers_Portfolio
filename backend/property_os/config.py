@@ -24,7 +24,7 @@ def validate_environment():
     # TIER 1: Core — required in ALL environments (blocks startup everywhere)
     # -----------------------------------------------------------------------
     core_required = {
-        'DJANGO_SECRET_KEY': 'DJANGO_SECRET_KEY',
+        'DJANGO_SECRET_KEY': 'SECRET_KEY',
     }
 
     missing_core = [

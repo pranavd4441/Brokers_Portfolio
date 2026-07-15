@@ -30,3 +30,35 @@ services:
         generateValue: true
       - key: JWT_SECRET_KEY
         generateValue: true
+
+  - type: worker
+    name: propertyos-celery
+    env: docker
+    rootDir: backend
+    dockerfilePath: Dockerfile
+    dockerContext: .
+    plan: free
+    dockerCommand: celery -A property_os worker --loglevel=info
+    envVars:
+      - key: DJANGO_ENVIRONMENT
+        value: production
+      - key: DJANGO_SETTINGS_MODULE
+        value: property_os.settings
+      - key: SECRET_PROVIDER
+        value: env
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: DJANGO_SECRET_KEY
+        fromService:
+          type: web
+          name: propertyos-backend
+          envVarKey: DJANGO_SECRET_KEY
+      - key: JWT_SECRET_KEY
+        fromService:
+          type: web
+          name: propertyos-backend
+          envVarKey: JWT_SECRET_KEY

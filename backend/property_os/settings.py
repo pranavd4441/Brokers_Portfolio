@@ -53,7 +53,14 @@ if SENTRY_DSN:
 
 
 
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-fallback-key-change-in-prod!')
+# Read from DJANGO_SECRET_KEY (set by render.yaml and docker-compose).
+# Fall back to SECRET_KEY for legacy compatibility, then the insecure placeholder
+# which is only acceptable during local dev (validate_environment() blocks production startup).
+SECRET_KEY = (
+    os.getenv('DJANGO_SECRET_KEY')
+    or os.getenv('SECRET_KEY')
+    or 'django-insecure-fallback-key-change-in-prod!'
+)
 
 DEBUG = os.getenv('DJANGO_DEBUG', 'True') == 'True'
 
@@ -298,6 +305,10 @@ if not DEBUG:
     SECURE_HSTS_PRELOAD = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_REFERRER_POLICY = 'same-origin'
+    # Render (and most PaaS) terminate SSL at the load balancer and forward HTTP
+    # to the container. Without this header, SECURE_SSL_REDIRECT causes an
+    # infinite redirect loop because Django sees plain HTTP on every request.
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # --- SECURE COOKIES ---
 SESSION_COOKIE_HTTPONLY = True

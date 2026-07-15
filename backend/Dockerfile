@@ -21,8 +21,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy project files
 COPY . /app/
 
-# Compile Django static assets during the build phase
-RUN python manage.py collectstatic --noinput
+# Note: collectstatic is intentionally NOT run here.
+# It requires runtime env vars (SECRET_KEY, etc.) which are unavailable during
+# Docker build. It is instead run in docker-entrypoint.sh at container startup.
 
 # Copy and set up the entrypoint startup script
 COPY docker-entrypoint.sh /usr/local/bin/
