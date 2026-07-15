@@ -196,8 +196,8 @@ class TestEnterpriseHardening:
             tenant2 = "a8b9f1d0-9943-4e89-8d76-f84eb63cf905"
             
             import hashlib
-            h1 = int(hashlib.md5(f"{tenant1}:ENABLE_WHATSAPP".encode()).hexdigest(), 16) % 100
-            h2 = int(hashlib.md5(f"{tenant2}:ENABLE_WHATSAPP".encode()).hexdigest(), 16) % 100
+            h1 = int(hashlib.md5(f"{tenant1}:ENABLE_WHATSAPP".encode()).hexdigest(), 16) % 100  # nosec B324
+            h2 = int(hashlib.md5(f"{tenant2}:ENABLE_WHATSAPP".encode()).hexdigest(), 16) % 100  # nosec B324
             
             res1 = FeatureFlagService.is_enabled("ENABLE_WHATSAPP", {"tenant_id": tenant1})
             res2 = FeatureFlagService.is_enabled("ENABLE_WHATSAPP", {"tenant_id": tenant2})
