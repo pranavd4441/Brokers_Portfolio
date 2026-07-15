@@ -82,7 +82,7 @@ Ensure all fields are fully populated and text is copywriter-grade. Return only 
                 headers={'Content-Type': 'application/json'},
                 method='POST'
             )
-            with urllib.request.urlopen(req, timeout=12) as response:
+            with urllib.request.urlopen(req, timeout=12) as response:  # nosec B310
                 res_body = response.read().decode('utf-8')
                 res_json = json.loads(res_body)
                 

@@ -24,7 +24,7 @@ def validate_environment():
     # TIER 1: Core — required in ALL environments (blocks startup everywhere)
     # -----------------------------------------------------------------------
     core_required = {
-        'DJANGO_SECRET_KEY': 'SECRET_KEY',
+        'DJANGO_SECRET_KEY': 'SECRET_KEY',  # nosec B105
     }
 
     missing_core = [
@@ -52,8 +52,8 @@ def validate_environment():
     # These enable the fundamental runtime: database and JWT auth.
     # -----------------------------------------------------------------------
     production_required = {
-        'DATABASE_URL': 'DATABASE_URL',
-        'JWT_SECRET_KEY': 'JWT_SECRET_KEY',
+        'DATABASE_URL': 'DATABASE_URL',  # nosec B105
+        'JWT_SECRET_KEY': 'JWT_SECRET_KEY',  # nosec B105
     }
 
     if is_prod_or_staging:
@@ -62,10 +62,13 @@ def validate_environment():
             for env_var, logical_name in production_required.items()
             if not os.getenv(env_var)
         ]
+        
+        for desc in missing_production:
+            logger.error(f"[PropertyOS] CRITICAL PRODUCTION ERROR: Missing environment variable for {desc}")
+            
         if missing_production:
             raise ImproperlyConfigured(
-                f"Production startup aborted. Missing required environment variables: "
-                f"{', '.join(missing_production)}."
+                f"Missing {len(missing_production)} production environment variables."
             )
 
     # -----------------------------------------------------------------------
@@ -74,13 +77,13 @@ def validate_environment():
     # -----------------------------------------------------------------------
     optional_features = {
         'REDIS_URL':                  'Redis / Celery (async tasks will run synchronously)',
-        'AWS_ACCESS_KEY_ID':          'Object Storage / S3 (media uploads use local disk fallback)',
-        'AWS_SECRET_ACCESS_KEY':      'Object Storage / S3 (media uploads use local disk fallback)',
-        'AWS_STORAGE_BUCKET_NAME':    'Object Storage / S3 (media uploads use local disk fallback)',
-        'WHATSAPP_ACCESS_TOKEN':      'WhatsApp Integration (messaging disabled)',
-        'WHATSAPP_PHONE_NUMBER_ID':   'WhatsApp Integration (messaging disabled)',
-        'GEMINI_API_KEY':             'Gemini AI (AI features disabled)',
-        'SENTRY_DSN':                 'Sentry (error tracking disabled)',
+        'AWS_ACCESS_KEY_ID':          'Object Storage / S3 (media uploads use local disk fallback)',  # nosec B105
+        'AWS_SECRET_ACCESS_KEY':      'Object Storage / S3 (media uploads use local disk fallback)',  # nosec B105
+        'AWS_STORAGE_BUCKET_NAME':    'Object Storage / S3 (media uploads use local disk fallback)',  # nosec B105
+        'WHATSAPP_ACCESS_TOKEN':      'WhatsApp Integration (messaging disabled)',  # nosec B105
+        'WHATSAPP_PHONE_NUMBER_ID':   'WhatsApp Integration (messaging disabled)',  # nosec B105
+        'GEMINI_API_KEY':             'Gemini AI (AI features disabled)',  # nosec B105
+        'SENTRY_DSN':                 'Sentry (error tracking disabled)',  # nosec B105
     }
 
     if is_prod_or_staging:

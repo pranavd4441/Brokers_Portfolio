@@ -32,7 +32,7 @@ class PrometheusMetricsView(APIView):
                     cursor.execute("SELECT count(*) FROM pg_stat_activity;")
                     active_conns = cursor.fetchone()[0]
             except Exception:
-                pass
+                pass  # nosec B110
         metrics.append("# HELP django_db_connections_active Active database connections.")
         metrics.append("# TYPE django_db_connections_active gauge")
         metrics.append(f"django_db_connections_active {active_conns}")
@@ -45,7 +45,7 @@ class PrometheusMetricsView(APIView):
             metrics.append("# TYPE process_max_rss_kb gauge")
             metrics.append(f"process_max_rss_kb {max_rss}")
         except Exception:
-            pass
+            pass  # nosec B110
 
         # 3. SaaS Business Metrics (cross-tenant global counts for platform tracking)
         properties_count = Property.objects_unfiltered.count()

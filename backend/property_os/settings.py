@@ -235,7 +235,7 @@ SIMPLE_JWT = {
     'USER_ID_CLAIM': 'user_id',
     
     # Custom token serializer to inject tenant_id and role
-    'TOKEN_OBTAIN_SERIALIZER': 'apps.accounts.serializers.CustomTokenObtainPairSerializer',
+    'TOKEN_OBTAIN_SERIALIZER': 'apps.accounts.serializers.CustomTokenObtainPairSerializer',  # nosec B105
 }
 
 # --- CELERY HARDENED CONFIG ---

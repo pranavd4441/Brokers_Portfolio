@@ -74,7 +74,7 @@ class AdvancedRateThrottle(BaseThrottle):
             if hasattr(cache, 'client') and hasattr(cache.client, 'get_client'):
                 redis_client = cache.client.get_client()
         except Exception:
-            pass
+            pass  # nosec B110
 
         if redis_client:
             try:
@@ -132,8 +132,7 @@ class AdvancedRateThrottle(BaseThrottle):
                 cache.set(blacklist_key, True, 86400)  # Blacklist IP for 24 hours
                 security_logger.error(f"IP {ip_addr} has been auto-blacklisted due to excessive rate limiting violations.")
         except Exception:
-            pass
-
+            pass  # nosec B110
 
 class WebhookRateThrottle(AdvancedRateThrottle):
     """

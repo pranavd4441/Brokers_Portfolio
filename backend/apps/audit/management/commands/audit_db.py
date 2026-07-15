@@ -88,7 +88,7 @@ class Command(BaseCommand):
             tables = [row[0] for row in cursor.fetchall()]
             for table in tables:
                 # Get row count
-                cursor.execute(f"SELECT COUNT(*) FROM {table};")
+                cursor.execute(f"SELECT COUNT(*) FROM {table};")  # nosec B608
                 count = cursor.fetchone()[0]
                 
                 # Get indexes

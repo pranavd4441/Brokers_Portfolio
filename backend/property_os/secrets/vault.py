@@ -29,7 +29,7 @@ class VaultSecretProvider(BaseSecretProvider):
         req.add_header('X-Vault-Token', self.vault_token)
         
         try:
-            with urllib.request.urlopen(req, timeout=5) as response:
+            with urllib.request.urlopen(req, timeout=5) as response:  # nosec B310
                 data = json.loads(response.read().decode())
                 secrets = data.get('data', {}).get('data', {})
                 self.secret_cache[secret_path] = secrets

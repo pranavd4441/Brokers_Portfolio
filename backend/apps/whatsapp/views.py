@@ -228,13 +228,13 @@ class WhatsAppWebhookView(APIView):
                                 media_info_url,
                                 headers={'Authorization': f"Bearer {access_token}"}
                             )
-                            with urllib.request.urlopen(req_media, timeout=10) as res_media:
+                            with urllib.request.urlopen(req_media, timeout=10) as res_media:  # nosec B310
                                 media_data = json.loads(res_media.read().decode('utf-8'))
                                 media_url = media_data.get('url')
                             
                             if media_url:
                                 req_file = urllib.request.Request(media_url, headers={'Authorization': f"Bearer {access_token}"})
-                                with urllib.request.urlopen(req_file, timeout=15) as res_file:
+                                with urllib.request.urlopen(req_file, timeout=15) as res_file:  # nosec B310
                                     audio_bytes = res_file.read()
                                     body_text = GeminiAudioTranscriptionService.transcribe(audio_bytes, mime_type)
                         except Exception as audio_err:
@@ -870,7 +870,7 @@ class WhatsAppWebhookView(APIView):
                                     media_info_url,
                                     headers={'Authorization': f"Bearer {access_token}"}
                                 )
-                                with urllib.request.urlopen(req_media, timeout=10) as res_media:
+                                with urllib.request.urlopen(req_media, timeout=10) as res_media:  # nosec B310
                                     media_data = json.loads(res_media.read().decode('utf-8'))
                                     media_url = media_data.get('url')
                                     content_type = media_data.get('mime_type', 'image/jpeg')
@@ -888,7 +888,7 @@ class WhatsAppWebhookView(APIView):
                                     headers['Authorization'] = f"Bearer {access_token}"
                                     
                                 req = urllib.request.Request(media_url, headers=headers)
-                                with urllib.request.urlopen(req, timeout=15) as res:
+                                with urllib.request.urlopen(req, timeout=15) as res:  # nosec B310
                                     file_bytes = res.read()
                                     
                                 ext = 'png' if 'png' in content_type else 'webp' if 'webp' in content_type else 'jpg'

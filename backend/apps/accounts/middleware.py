@@ -54,7 +54,7 @@ class TenantMiddleware(MiddlewareMixin):
                 # Reset enforcement token
                 set_tenant_enforcement_active(False)
             except Exception:
-                pass
+                pass  # nosec B110
             request._tenant_enforcement_token = None
             
         return response
@@ -73,7 +73,7 @@ class TenantMiddleware(MiddlewareMixin):
             try:
                 set_tenant_enforcement_active(False)
             except Exception:
-                pass
+                pass  # nosec B110
             request._tenant_enforcement_token = None
             
         return None

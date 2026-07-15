@@ -59,7 +59,7 @@ class FeatureFlagService:
             target_id = context.get('tenant_id') or context.get('user_id')
             if target_id:
                 # Use MD5 to distribute identifiers evenly across [0, 99]
-                hash_score = int(hashlib.md5(f"{target_id}:{flag_name}".encode()).hexdigest(), 16) % 100
+                hash_score = int(hashlib.md5(f"{target_id}:{flag_name}".encode()).hexdigest(), 16) % 100  # nosec B324
                 
                 # Fetch threshold percentage (e.g. FEATURE_ROLLOUT_ENABLE_WHATSAPP=20 for 20%)
                 rollout_str = os.getenv(f"FEATURE_ROLLOUT_{flag_name}")

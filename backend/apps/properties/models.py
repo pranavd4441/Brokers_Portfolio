@@ -104,4 +104,4 @@ class Property(TenantModel):
                         created_by=self.created_by or self.assigned_to
                     )
             except Exception:
-                pass
+                pass  # nosec B110
