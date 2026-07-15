@@ -1,0 +1,17 @@
+# PropertyOS Code Owners
+
+# Global owners
+*       @propertyos-admin
+
+# Backend
+/backend/           @backend-team
+/backend/property_os/settings.py @security-team @backend-team
+
+# Frontend
+/frontend/          @frontend-team
+
+# CI/CD and Infrastructure
+/.github/           @devops-team
+/docker-compose.yml @devops-team
+/backend/Dockerfile @devops-team
+/frontend/Dockerfile @devops-team
