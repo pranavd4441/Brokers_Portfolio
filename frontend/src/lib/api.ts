@@ -3,14 +3,6 @@
 // to the Django backend via the rewrites rule in next.config.ts.
 
 function getApiUrl() {
-  // In the browser: always use a relative /api path so the
-  // Next.js dev-server proxy (next.config.ts rewrites) forwards
-  // the request to Django. Using window.location.origin + '/api'
-  // was correct too, but an explicit relative URL is cleaner.
-  if (typeof window !== 'undefined') {
-    return '/api';
-  }
-  // On the server (SSR/ISR): hit Django directly.
   return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 }
 
