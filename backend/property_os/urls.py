@@ -121,6 +121,10 @@ class HealthCheckView(APIView):
         ):
             health_data["status"] = "unhealthy"
             status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+            import logging
+            logging.getLogger("django.request").error(
+                f"[PropertyOS] Health check failed! Details: {health_data['details']}"
+            )
         else:
             status_code = status.HTTP_200_OK
 
