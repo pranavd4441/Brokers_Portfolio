@@ -63,7 +63,7 @@ class HealthCheckView(APIView):
         redis_url = "" if is_testing else os.getenv("REDIS_URL", "")
         if redis_url:
             try:
-                r = redis.Redis.from_url(redis_url, socket_timeout=2)
+                r = redis.Redis.from_url(redis_url, socket_timeout=1)
                 r.ping()
                 health_data["details"]["redis"] = "up"
             except Exception as e:
@@ -75,7 +75,7 @@ class HealthCheckView(APIView):
             )
 
         # 4. Check Celery
-        if redis_url and not is_testing:
+        if redis_url and redis_up and not is_testing:
             try:
                 from property_os.celery import app as celery_app
 
@@ -88,9 +88,12 @@ class HealthCheckView(APIView):
             except Exception as e:
                 health_data["details"]["celery"] = f"down: {str(e)}"
         else:
-            health_data["details"]["celery"] = (
-                "skipped (eager mode)" if not is_testing else "skipped (testing)"
-            )
+            if redis_url and not redis_up:
+                health_data["details"]["celery"] = "skipped (redis down)"
+            else:
+                health_data["details"]["celery"] = (
+                    "skipped (eager mode)" if not is_testing else "skipped (testing)"
+                )
 
         # 5. Check Object Storage Accessibility
         if not is_testing:
