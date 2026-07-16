@@ -65,9 +65,7 @@ class FeatureFlagService:
                 # Use MD5 to distribute identifiers evenly across [0, 99]
                 hash_score = (
                     int(
-                        hashlib.md5(
-                            f"{target_id}:{flag_name}".encode()
-                        ).hexdigest(),  # nosec B324
+                        hashlib.md5(f"{target_id}:{flag_name}".encode()).hexdigest(),  # nosec B324
                         16,
                     )
                     % 100
