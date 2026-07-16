@@ -1,7 +1,7 @@
-import os
 from celery import shared_task
-from django.contrib.auth import get_user_model
+
 from apps.properties.models import Property
+
 from .models import PropertyImage
 from .utils import process_and_store_image
 

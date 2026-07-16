@@ -1,9 +1,9 @@
-import os
 import uuid
 from io import BytesIO
-from PIL import Image
-from django.core.files.storage import default_storage
+
 from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
+from PIL import Image
 
 
 def validate_uploaded_file(uploaded_file):
