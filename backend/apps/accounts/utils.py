@@ -1,5 +1,3 @@
-
-
 def parse_user_agent(user_agent_str):
     """
     Parses user agent to extract browser and OS details.

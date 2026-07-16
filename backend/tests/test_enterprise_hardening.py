@@ -201,7 +201,6 @@ class TestEnterpriseHardening:
             tenant1 = "c0840ee8-c2b6-455b-8012-32a2f8b50630"
             tenant2 = "a8b9f1d0-9943-4e89-8d76-f84eb63cf905"
 
-
             h1 = (
                 int(hashlib.md5(f"{tenant1}:ENABLE_WHATSAPP".encode()).hexdigest(), 16)
                 % 100
