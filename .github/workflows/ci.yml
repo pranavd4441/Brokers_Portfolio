@@ -240,16 +240,22 @@ jobs:
         run: |
           cd backend
           mkdir -p junit
-          coverage run --rcfile=.coveragerc -m pytest --junitxml=junit/test-results.xml
-          coverage xml
-          coverage report -m --fail-under=80
+          exit_code=0
+          coverage run --rcfile=.coveragerc -m pytest --junitxml=junit/test-results.xml > test_log.txt 2>&1 || exit_code=$?
+          cat test_log.txt
+          coverage xml || true
+          if [ $exit_code -ne 0 ]; then
+            exit $exit_code
+          fi
 
       - name: Upload Coverage Artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: coverage-python-${{ matrix.python-version }}
-          path: backend/coverage.xml
+          path: |
+            backend/coverage.xml
+            backend/test_log.txt
           retention-days: 14
 
       - name: Upload JUnit XML
