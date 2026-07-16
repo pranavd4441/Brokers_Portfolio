@@ -240,7 +240,7 @@ jobs:
         run: |
           cd backend
           mkdir -p junit
-          coverage run --rcfile=.coveragerc -m pytest -n auto --junitxml=junit/test-results.xml
+          coverage run --rcfile=.coveragerc -m pytest --junitxml=junit/test-results.xml
           coverage xml
           coverage report -m --fail-under=80
 
