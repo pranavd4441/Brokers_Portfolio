@@ -1,6 +1,7 @@
 services:
   - type: web
     name: propertyos-backend
+    region: virginia
     env: docker
     rootDir: backend
     dockerfilePath: Dockerfile
@@ -33,6 +34,7 @@ services:
 
   - type: worker
     name: propertyos-celery
+    region: virginia
     env: docker
     rootDir: backend
     dockerfilePath: Dockerfile
