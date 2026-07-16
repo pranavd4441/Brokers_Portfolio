@@ -3,6 +3,19 @@
 // to the Django backend via the rewrites rule in next.config.ts.
 
 function getApiUrl() {
+  if (typeof window !== 'undefined') {
+    const origin = window.location.origin;
+    if (origin.includes("-frontend")) {
+      return origin.replace("-frontend", "-backend") + "/api";
+    }
+    return "/api";
+  }
+  
+  // On the server side (SSR/ISR)
+  const backendUrl = process.env.BACKEND_URL;
+  if (backendUrl) {
+    return backendUrl.endsWith('/') ? `${backendUrl}api` : `${backendUrl}/api`;
+  }
   return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 }
 
