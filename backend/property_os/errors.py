@@ -1,6 +1,6 @@
 import datetime
 from django.utils.timezone import now
-from rest_framework.exceptions import ValidationError, Throttled, NotAuthenticated, PermissionDenied, NotFound
+from rest_framework.exceptions import ValidationError, Throttled, NotAuthenticated, PermissionDenied, NotFound, AuthenticationFailed
 from django.http import Http404
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 
@@ -33,7 +33,7 @@ def resolve_exception_details(exc, request=None):
         return "RATE_LIMIT_EXCEEDED", f"Too many requests. Please try again in {wait} seconds.", {"wait": wait}
         
     # 3. Authentication
-    elif isinstance(exc, NotAuthenticated):
+    elif isinstance(exc, (NotAuthenticated, AuthenticationFailed)):
         return "UNAUTHENTICATED", "Authentication credentials were not provided or are invalid.", {}
         
     # 4. Permissions / Access
