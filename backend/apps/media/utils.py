@@ -5,6 +5,7 @@ from PIL import Image
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 
+
 def validate_uploaded_file(uploaded_file):
     """
     Validates that an uploaded file is a genuine, safe image.
@@ -14,16 +15,18 @@ def validate_uploaded_file(uploaded_file):
     # Read first 12 bytes for signature validation
     header = uploaded_file.read(12)
     uploaded_file.seek(0)  # Reset stream pointer
-    
+
     # Signature constants
-    is_jpeg = header.startswith(b'\xff\xd8')
-    is_png = header.startswith(b'\x89PNG\r\n\x1a\n')
-    is_gif = header.startswith(b'GIF8')
-    is_webp = header.startswith(b'RIFF') and header[8:12] == b'WEBP'
-    
+    is_jpeg = header.startswith(b"\xff\xd8")
+    is_png = header.startswith(b"\x89PNG\r\n\x1a\n")
+    is_gif = header.startswith(b"GIF8")
+    is_webp = header.startswith(b"RIFF") and header[8:12] == b"WEBP"
+
     if not (is_jpeg or is_png or is_gif or is_webp):
-        raise ValueError("Unsupported or invalid image file signature (magic bytes check failed).")
-        
+        raise ValueError(
+            "Unsupported or invalid image file signature (magic bytes check failed)."
+        )
+
     # Malware scanning extension hook
     # In full production, this would communicate with a daemon like clamd or an external API
     return True
@@ -43,18 +46,18 @@ def process_and_store_image(property_id, uploaded_file):
 
     # Read the image file using Pillow
     img = Image.open(uploaded_file)
-    
+
     # 1. Generate Optimized Main Image
     main_io = BytesIO()
     # Convert to RGB if necessary (e.g., PNG/GIF with transparency)
-    if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+    if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
         # Convert to RGBA first to ensure a valid alpha channel exists for masking
-        img_rgba = img.convert('RGBA')
+        img_rgba = img.convert("RGBA")
         background = Image.new("RGB", img_rgba.size, (255, 255, 255))
         background.paste(img_rgba, mask=img_rgba.split()[3])
         img = background
-    elif img.mode != 'RGB':
-        img = img.convert('RGB')
+    elif img.mode != "RGB":
+        img = img.convert("RGB")
 
     # Resize if larger than 1920px width
     max_width = 1920
@@ -65,20 +68,20 @@ def process_and_store_image(property_id, uploaded_file):
     else:
         img_resized = img
 
-    img_resized.save(main_io, format='WEBP', quality=80)
+    img_resized.save(main_io, format="WEBP", quality=80)
     main_io.seek(0)
 
     # 2. Generate Thumbnail Image (400x300 aspect ratio fill/crop)
     thumb_io = BytesIO()
     thumb_size = (400, 300)
-    
+
     # Create thumbnail using crop to fit 400x300 perfectly
     img_thumb = img.copy()
     img_thumb.thumbnail(thumb_size, Image.Resampling.LANCZOS)
-    # If the aspect ratio doesn't match perfectly, we can pad it or use fit. 
+    # If the aspect ratio doesn't match perfectly, we can pad it or use fit.
     # Let's use Pillow's ImageOps.fit if we want exact 400x300, or just standard thumbnail.
     # Standard thumbnail keeps aspect ratio within 400x300, which is great.
-    img_thumb.save(thumb_io, format='WEBP', quality=75)
+    img_thumb.save(thumb_io, format="WEBP", quality=75)
     thumb_io.seek(0)
 
     # 3. Save files to storage

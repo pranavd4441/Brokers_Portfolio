@@ -125,8 +125,7 @@ jobs:
         run: safety check -r backend/requirements.txt || true
 
       - name: Upload Bandit Artifact
-        # Pinning to SHA: v4.1.0
-        uses: actions/upload-artifact@1eb3cb2b3e0f29609092a73eb033bb759a334508
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: bandit-report
@@ -245,7 +244,7 @@ jobs:
           coverage report -m --fail-under=80
 
       - name: Upload Coverage Artifact
-        uses: actions/upload-artifact@1eb3cb2b3e0f29609092a73eb033bb759a334508
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: coverage-python-${{ matrix.python-version }}
@@ -253,7 +252,7 @@ jobs:
           retention-days: 14
 
       - name: Upload JUnit XML
-        uses: actions/upload-artifact@1eb3cb2b3e0f29609092a73eb033bb759a334508
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: junit-results-python-${{ matrix.python-version }}
@@ -312,7 +311,7 @@ jobs:
           output: 'backend-sbom.json'
 
       - name: Upload SBOM
-        uses: actions/upload-artifact@1eb3cb2b3e0f29609092a73eb033bb759a334508
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: backend-sbom

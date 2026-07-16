@@ -54,7 +54,6 @@ class TenantMiddleware(MiddlewareMixin):
         enforce_token = getattr(request, "_tenant_enforcement_token", None)
         if enforce_token:
             try:
-
                 # Reset enforcement token
                 set_tenant_enforcement_active(False)
             except Exception:

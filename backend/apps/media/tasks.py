@@ -5,6 +5,7 @@ from apps.properties.models import Property
 from .models import PropertyImage
 from .utils import process_and_store_image
 
+
 @shared_task
 def process_image_async(property_id, base64_data, filename, display_order):
     """
@@ -15,6 +16,7 @@ def process_image_async(property_id, base64_data, filename, display_order):
     """
     import base64
     from io import BytesIO
+
     try:
         # Get the property
         try:
@@ -29,7 +31,7 @@ def process_image_async(property_id, base64_data, filename, display_order):
         # Pillow needs name attribute sometimes, we can wrap or pass directly
         # Let's set the name on the BytesIO object so utils can inspect file extensions if needed
         f.name = filename
-        
+
         main_url, thumb_url = process_and_store_image(property_id, f)
 
         # Write to database
@@ -37,7 +39,7 @@ def process_image_async(property_id, base64_data, filename, display_order):
             property=property_obj,
             url=main_url,
             thumbnail_url=thumb_url,
-            display_order=display_order
+            display_order=display_order,
         )
 
         print(f"[Celery] Successfully processed image for property {property_id}")
