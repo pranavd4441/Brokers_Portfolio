@@ -32,19 +32,50 @@ class TenantMiddleware(MiddlewareMixin):
         # Store the token returned by set_current_tenant_id so we can reset it in process_response
         request._tenant_context_token = set_current_tenant_id(tenant_id)
         
+        from .tenant_context import set_tenant_enforcement_active
+        request._tenant_enforcement_token = set_tenant_enforcement_active(True)
+        
         # Expose tenant_id on the request object for convenience
         request.tenant_id = tenant_id
 
     def process_response(self, request, response):
         # Clear the tenant context after the request is processed to prevent leakage
+        from .tenant_context import set_tenant_enforcement_active
+        
         token = getattr(request, '_tenant_context_token', None)
-        clear_current_tenant_id(token)
+        if token:
+            clear_current_tenant_id(token)
+            request._tenant_context_token = None
+            
+        enforce_token = getattr(request, '_tenant_enforcement_token', None)
+        if enforce_token:
+            try:
+                import contextvars
+                # Reset enforcement token
+                set_tenant_enforcement_active(False)
+            except Exception:
+                pass  # nosec B110
+            request._tenant_enforcement_token = None
+            
         return response
 
     def process_exception(self, request, exception):
         # Clear the tenant context if an exception occurs
+        from .tenant_context import set_tenant_enforcement_active
+        
         token = getattr(request, '_tenant_context_token', None)
-        clear_current_tenant_id(token)
+        if token:
+            clear_current_tenant_id(token)
+            request._tenant_context_token = None
+            
+        enforce_token = getattr(request, '_tenant_enforcement_token', None)
+        if enforce_token:
+            try:
+                set_tenant_enforcement_active(False)
+            except Exception:
+                pass  # nosec B110
+            request._tenant_enforcement_token = None
+            
         return None
 
 

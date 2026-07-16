@@ -11,7 +11,7 @@ def generate_default_slug(title=None):
     Generates a unique short slug for sharing.
     Example: 'sleek-3-bhk-baner-x7f2a1'
     """
-    suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+    suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))  # nosec B311
     if title:
         base = slugify(title)[:40]
         if base:

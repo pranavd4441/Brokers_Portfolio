@@ -188,12 +188,18 @@ function StickyCtaBar({
   price,
   propertyTitle,
   brandColor,
+  onWhatsApp,
+  onCall,
+  disabled = false,
 }: {
   phone: string;
   whatsapp: string;
   price: number;
   propertyTitle: string;
   brandColor: string;
+  onWhatsApp: () => void;
+  onCall: () => void;
+  disabled?: boolean;
 }) {
   const [visible, setVisible] = useState(false);
   const formatted = formatPrice(price);
@@ -203,15 +209,6 @@ function StickyCtaBar({
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
-
-  const handleWhatsApp = () => {
-    const text = encodeURIComponent(`Hi! I'm interested in: ${propertyTitle}\n${window.location.href}`);
-    window.open(`https://wa.me/${whatsapp}?text=${text}`, '_blank');
-  };
-
-  const handleCall = () => {
-    window.location.href = `tel:${phone}`;
-  };
 
   return (
     <div
@@ -227,23 +224,31 @@ function StickyCtaBar({
               {formatted.main} <span className="text-sm text-[#8892aa]">{formatted.sub}</span>
             </p>
           </div>
-          <button
-            id="cta-call-btn"
-            onClick={handleCall}
-            className="flex items-center justify-center gap-2 h-11 px-4 rounded-xl border border-[rgba(255,255,255,0.1)] bg-[rgba(255,255,255,0.05)] text-[#f0f4ff] text-sm font-semibold hover:bg-[rgba(255,255,255,0.08)] transition-all cursor-pointer flex-shrink-0"
-          >
-            <span>📞</span>
-            <span className="hidden sm:block">Call</span>
-          </button>
-          <button
-            id="cta-whatsapp-btn"
-            onClick={handleWhatsApp}
-            className="flex items-center justify-center gap-2 h-11 px-5 rounded-xl text-sm font-bold text-[#07090f] hover:opacity-90 active:scale-95 transition-all cursor-pointer flex-shrink-0"
-            style={{ background: brandColor }}
-          >
-            <span>💬</span>
-            <span>WhatsApp</span>
-          </button>
+          {disabled ? (
+            <div className="flex-1 text-center py-2.5 px-4 text-[11px] font-bold text-[#f43f5e] bg-[#f43f5e]/10 border border-[#f43f5e]/20 rounded-xl whitespace-nowrap truncate">
+              ⚠️ Listing Inactive (Off-Market)
+            </div>
+          ) : (
+            <>
+              <button
+                id="cta-call-btn"
+                onClick={onCall}
+                className="flex items-center justify-center gap-2 h-11 px-4 rounded-xl border border-[rgba(255,255,255,0.1)] bg-[rgba(255,255,255,0.05)] text-[#f0f4ff] text-sm font-semibold hover:bg-[rgba(255,255,255,0.08)] transition-all cursor-pointer flex-shrink-0"
+              >
+                <span>📞</span>
+                <span className="hidden sm:block">Call</span>
+              </button>
+              <button
+                id="cta-whatsapp-btn"
+                onClick={onWhatsApp}
+                className="flex items-center justify-center gap-2 h-11 px-5 rounded-xl text-sm font-bold text-[#07090f] hover:opacity-90 active:scale-95 transition-all cursor-pointer flex-shrink-0"
+                style={{ background: brandColor }}
+              >
+                <span>💬</span>
+                <span>WhatsApp</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -264,29 +269,112 @@ export default function PublicPropertyClient({ property }: { property: PublicPro
     fetch('/api/analytics/log/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ property_id: property.id, event: 'VIEW' }),
+      body: JSON.stringify({ property: property.id, event_type: 'PAGE_VIEW' }),
     }).catch(() => {});
   }, [property.id]);
 
-  const handleWhatsApp = useCallback(() => {
-    const text = encodeURIComponent(`Hi! I'm interested in: ${property.title}\n${window.location.href}`);
-    window.open(`https://wa.me/${property.broker.whatsapp}?text=${text}`, '_blank');
-    // Log click
-    fetch('/api/analytics/log/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ property_id: property.id, event: 'WHATSAPP_CLICK' }),
-    }).catch(() => {});
+  // State for gated lead modal
+  const [showGatedModal, setShowGatedModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'whatsapp' | 'call' | null>(null);
+  const [modalName, setModalName] = useState('');
+  const [modalPhone, setModalPhone] = useState('');
+  const [modalError, setModalError] = useState('');
+
+  // Initialize modal values from localStorage on mount (client-only safety)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setModalName(localStorage.getItem('buyer_name') || '');
+      setModalPhone(localStorage.getItem('buyer_phone') || '');
+    }
+  }, []);
+
+  // Function to execute the action after identification
+  const executeAction = useCallback((action: 'whatsapp' | 'call', name: string, phone: string) => {
+    if (action === 'whatsapp') {
+      const siteUrl = window.location.origin;
+      const shareUrl = `${siteUrl}/p/${property.slug}`;
+      const text = encodeURIComponent(`Hi! I'm interested in: ${property.title}\n${shareUrl}`);
+      const cleanedPhone = property.broker.whatsapp.replace(/\D/g, '');
+      window.open(`https://wa.me/${cleanedPhone}?text=${text}`, '_blank');
+      
+      // Log click with buyer details
+      fetch('/api/analytics/log/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          property: property.id,
+          event_type: 'WHATSAPP_CLICK',
+          buyer_name: name,
+          buyer_phone: phone
+        }),
+      }).catch(() => {});
+    } else if (action === 'call') {
+      window.location.href = `tel:${property.broker.phone}`;
+      
+      // Log click with buyer details
+      fetch('/api/analytics/log/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          property: property.id,
+          event_type: 'PHONE_CLICK',
+          buyer_name: name,
+          buyer_phone: phone
+        }),
+      }).catch(() => {});
+    }
   }, [property]);
 
-  const handleCall = useCallback(() => {
-    window.location.href = `tel:${property.broker.phone}`;
-    fetch('/api/analytics/log/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ property_id: property.id, event: 'PHONE_CLICK' }),
-    }).catch(() => {});
-  }, [property]);
+  // Unified click handlers
+  const handleWhatsAppClick = useCallback(() => {
+    const savedName = localStorage.getItem('buyer_name');
+    const savedPhone = localStorage.getItem('buyer_phone');
+
+    if (savedName && savedPhone) {
+      executeAction('whatsapp', savedName, savedPhone);
+    } else {
+      setPendingAction('whatsapp');
+      setShowGatedModal(true);
+    }
+  }, [executeAction]);
+
+  const handleCallClick = useCallback(() => {
+    const savedName = localStorage.getItem('buyer_name');
+    const savedPhone = localStorage.getItem('buyer_phone');
+
+    if (savedName && savedPhone) {
+      executeAction('call', savedName, savedPhone);
+    } else {
+      setPendingAction('call');
+      setShowGatedModal(true);
+    }
+  }, [executeAction]);
+
+  const handleModalSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!modalName.trim()) {
+      setModalError('Please enter your name');
+      return;
+    }
+    if (!modalPhone.trim()) {
+      setModalError('Please enter your phone number');
+      return;
+    }
+    
+    // Save to localStorage
+    localStorage.setItem('buyer_name', modalName.trim());
+    localStorage.setItem('buyer_phone', modalPhone.trim());
+    
+    // Execute pending action
+    if (pendingAction) {
+      executeAction(pendingAction, modalName.trim(), modalPhone.trim());
+    }
+    
+    // Reset state
+    setShowGatedModal(false);
+    setPendingAction(null);
+    setModalError('');
+  };
 
   return (
     <>
@@ -322,10 +410,12 @@ export default function PublicPropertyClient({ property }: { property: PublicPro
             {/* Share button */}
             <button
               onClick={() => {
+                const siteUrl = window.location.origin;
+                const shareUrl = `${siteUrl}/p/${property.slug}`;
                 if (navigator.share) {
-                  navigator.share({ title: property.title, url: window.location.href });
+                  navigator.share({ title: property.title, url: shareUrl });
                 } else {
-                  navigator.clipboard.writeText(window.location.href);
+                  navigator.clipboard.writeText(shareUrl);
                 }
               }}
               className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)] text-[#8892aa] hover:text-[#f0f4ff] text-xs font-medium transition-all"
@@ -338,6 +428,18 @@ export default function PublicPropertyClient({ property }: { property: PublicPro
 
         {/* ── Main content ── */}
         <main className="max-w-4xl mx-auto px-4 pt-6 pb-12">
+          {property.status === 'EXPIRED' && (
+            <div className="mb-6 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-3 text-rose-400 select-none">
+              <span className="text-xl">⚠️</span>
+              <div>
+                <h4 className="text-sm font-bold">Listing Inactive</h4>
+                <p className="text-xs text-[#8892aa] mt-0.5 leading-relaxed">
+                  This property listing has expired or has been delisted by the broker. Inquiries are currently suspended.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Gallery */}
           <Gallery images={property.images} title={property.title} />
 
@@ -485,23 +587,31 @@ export default function PublicPropertyClient({ property }: { property: PublicPro
 
                   {/* CTA buttons */}
                   <div className="space-y-2.5">
-                    <button
-                      id="detail-whatsapp-btn"
-                      onClick={handleWhatsApp}
-                      className="w-full flex items-center justify-center gap-2.5 h-12 rounded-xl text-sm font-bold text-[#07090f] hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer"
-                      style={{ background: brandColor }}
-                    >
-                      <span className="text-base">💬</span>
-                      Chat on WhatsApp
-                    </button>
-                    <button
-                      id="detail-call-btn"
-                      onClick={handleCall}
-                      className="w-full flex items-center justify-center gap-2.5 h-12 rounded-xl text-sm font-semibold text-[#f0f4ff] bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.08)] transition-all cursor-pointer"
-                    >
-                      <span className="text-base">📞</span>
-                      Call Broker
-                    </button>
+                    {property.status === 'EXPIRED' ? (
+                      <div className="w-full text-center py-3 px-4 text-xs font-bold text-[#f43f5e] bg-[#f43f5e]/10 border border-[#f43f5e]/20 rounded-xl">
+                        ⚠️ Inquiries Suspended
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          id="detail-whatsapp-btn"
+                          onClick={handleWhatsAppClick}
+                          className="w-full flex items-center justify-center gap-2.5 h-12 rounded-xl text-sm font-bold text-[#07090f] hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer"
+                          style={{ background: brandColor }}
+                        >
+                          <span className="text-base">💬</span>
+                          Chat on WhatsApp
+                        </button>
+                        <button
+                          id="detail-call-btn"
+                          onClick={handleCallClick}
+                          className="w-full flex items-center justify-center gap-2.5 h-12 rounded-xl text-sm font-semibold text-[#f0f4ff] bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.08)] transition-all cursor-pointer"
+                        >
+                          <span className="text-base">📞</span>
+                          Call Broker
+                        </button>
+                      </>
+                    )}
                   </div>
 
                   {/* Trust signals */}
@@ -518,7 +628,7 @@ export default function PublicPropertyClient({ property }: { property: PublicPro
                   <p className="text-xs font-semibold text-[#8892aa] mb-3">Share this listing</p>
                   <div className="flex gap-2">
                     <button
-                      onClick={handleWhatsApp}
+                      onClick={handleWhatsAppClick}
                       className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-xl bg-[#25D366]/10 border border-[#25D366]/20 text-[#25D366] text-xs font-semibold hover:bg-[#25D366]/20 transition-all cursor-pointer"
                     >
                       <span>💬</span> WhatsApp
@@ -550,6 +660,77 @@ export default function PublicPropertyClient({ property }: { property: PublicPro
         </div>
       </div>
 
+      {/* ── Gated Buyer Modal ── */}
+      {showGatedModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/85 backdrop-blur-md px-4">
+          <div className="relative w-full max-w-md bg-[#0a0c14] border border-[rgba(255,255,255,0.08)] rounded-2xl p-6 shadow-2xl">
+            {/* Close Button */}
+            <button
+              onClick={() => {
+                setShowGatedModal(false);
+                setPendingAction(null);
+                setModalError('');
+              }}
+              className="absolute top-4 right-4 w-8 h-8 rounded-lg flex items-center justify-center text-[#4a5470] hover:text-[#f0f4ff] hover:bg-[rgba(255,255,255,0.05)] transition-all"
+            >
+              ✕
+            </button>
+
+            <div className="text-center mb-6">
+              <div className="w-12 h-12 rounded-2xl bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] flex items-center justify-center text-xl mx-auto mb-4">
+                🎯
+              </div>
+              <h3 className="text-lg font-bold text-[#f0f4ff]">Connect with Broker</h3>
+              <p className="text-xs text-[#8892aa] mt-1.5 leading-relaxed">
+                Please provide your contact details to connect with the broker instantly. Your details are secure and shared only with the listing broker.
+              </p>
+            </div>
+
+            <form onSubmit={handleModalSubmit} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#4a5470] mb-1.5">
+                  Your Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. John Doe"
+                  value={modalName}
+                  onChange={e => setModalName(e.target.value)}
+                  className="w-full h-11 px-3.5 bg-[#07090f]/60 border border-[rgba(255,255,255,0.08)] rounded-xl text-sm text-[#f0f4ff] placeholder-[#4a5470] focus:outline-none focus:border-[var(--brand)] focus:ring-1 focus:ring-[var(--brand)] transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#4a5470] mb-1.5">
+                  Phone Number
+                </label>
+                <input
+                  type="tel"
+                  required
+                  placeholder="e.g. +91 99999 99999"
+                  value={modalPhone}
+                  onChange={e => setModalPhone(e.target.value)}
+                  className="w-full h-11 px-3.5 bg-[#07090f]/60 border border-[rgba(255,255,255,0.08)] rounded-xl text-sm text-[#f0f4ff] placeholder-[#4a5470] focus:outline-none focus:border-[var(--brand)] focus:ring-1 focus:ring-[var(--brand)] transition-all"
+                />
+              </div>
+
+              {modalError && (
+                <p className="text-xs font-medium text-[#f43f5e] text-center">{modalError}</p>
+              )}
+
+              <button
+                type="submit"
+                className="w-full h-11 rounded-xl text-sm font-bold text-[#07090f] hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer mt-2"
+                style={{ background: brandColor }}
+              >
+                Continue to {pendingAction === 'whatsapp' ? 'WhatsApp' : 'Call'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* ── Sticky bottom CTA (mobile + desktop) ── */}
       <StickyCtaBar
         phone={property.broker.phone}
@@ -557,6 +738,9 @@ export default function PublicPropertyClient({ property }: { property: PublicPro
         price={property.price}
         propertyTitle={property.title}
         brandColor={brandColor}
+        onWhatsApp={handleWhatsAppClick}
+        onCall={handleCallClick}
+        disabled={property.status === 'EXPIRED'}
       />
     </>
   );

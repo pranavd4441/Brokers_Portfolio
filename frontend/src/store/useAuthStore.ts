@@ -26,7 +26,7 @@ interface AuthState {
   error: string | null;
   
   login: (email: string, password: string) => Promise<UserSession>;
-  signup: (companyName: string, name: string, email: string, password: string) => Promise<any>;
+  signup: (companyName: string, name: string, email: string, password: string, phone: string) => Promise<any>;
   logout: () => void;
   loadUser: () => Promise<UserSession | null>;
   updateTenantBranding: (branding: Partial<TenantBranding>) => void;
@@ -70,7 +70,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  signup: async (companyName, name, email, password) => {
+  signup: async (companyName, name, email, password, phone) => {
     set({ isLoading: true, error: null });
     try {
       const response = await fetchApi('/auth/register/', {
@@ -79,7 +79,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           company_name: companyName,
           name,
           email,
-          password
+          password,
+          phone
         }),
       });
       

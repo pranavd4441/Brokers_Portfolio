@@ -1,0 +1,36 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environment — never copy into image; image has its own pip install
+venv/
+.venv/
+env/
+ENV/
+
+# Development databases
+db.sqlite3
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Local secrets
+.env
+.env.local
+.env.*.local
+
+# IDE / OS artifacts
+.DS_Store
+*.log
+Thumbs.db
+
+# Local dev scripts
+simulate_whatsapp.py
+inspect_db.py
+test_image_upload.py

@@ -190,7 +190,22 @@ export async function fetchApi<T = any>(endpoint: string, options: ApiRequestOpt
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.detail || data.message || JSON.stringify(data) || `API error: ${response.status}`);
+      let errMsg = data.message || data.detail || `API error: ${response.status}`;
+      if (data.details && typeof data.details === 'object') {
+        const detailParts: string[] = [];
+        for (const [key, value] of Object.entries(data.details)) {
+          const fieldName = key.charAt(0).toUpperCase() + key.slice(1);
+          if (Array.isArray(value)) {
+            detailParts.push(`${fieldName}: ${value.join(', ')}`);
+          } else {
+            detailParts.push(`${fieldName}: ${value}`);
+          }
+        }
+        if (detailParts.length > 0) {
+          errMsg = detailParts.join(' | ');
+        }
+      }
+      throw new Error(errMsg);
     }
 
     return data as T;

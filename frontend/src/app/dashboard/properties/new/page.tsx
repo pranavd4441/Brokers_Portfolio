@@ -4,6 +4,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchApi } from '@/lib/api';
+import AIAssistantModal from '@/components/AIAssistantModal';
 
 // ─── Types ──────────────────────────────────────────────────────
 interface PropertyFormData {
@@ -218,6 +219,7 @@ export default function NewPropertyPage() {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [showAiModal, setShowAiModal] = useState(false);
 
   const [form, setForm] = useState<PropertyFormData>({
     title: '',
@@ -528,7 +530,16 @@ export default function NewPropertyPage() {
         {step === 3 && (
           <div className="space-y-6">
             <div>
-              <label htmlFor="description" className="os-input-label">Description *</label>
+              <div className="flex items-center justify-between mb-2">
+                <label htmlFor="description" className="os-input-label !mb-0">Description *</label>
+                <button
+                  type="button"
+                  onClick={() => setShowAiModal(true)}
+                  className="text-xs font-bold text-[#16c784] hover:text-[#19e098] transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <span>✨</span> Generate with AI
+                </button>
+              </div>
               <textarea
                 id="description"
                 placeholder="Describe the property — mention highlights, unique features, nearby landmarks, and what makes this a great investment or home…"
@@ -639,6 +650,19 @@ export default function NewPropertyPage() {
           )}
         </div>
       </div>
+
+      {showAiModal && (
+        <AIAssistantModal
+          propertyType={form.property_type}
+          price={form.price}
+          bhk={form.bhk}
+          area={form.area}
+          city={form.city}
+          onApplyTitle={(title) => updateField('title', title)}
+          onApplyDescription={(desc) => updateField('description', desc)}
+          onClose={() => setShowAiModal(false)}
+        />
+      )}
     </div>
   );
 }

@@ -10,6 +10,7 @@ from apps.media.models import PropertyImage
 from apps.media.utils import process_and_store_image
 from apps.media.tasks import process_image_async
 from apps.audit.utils import log_audit_event
+from property_os.feature_flags import FeatureFlagService
 
 class PropertyViewSet(viewsets.ModelViewSet):
     """
@@ -19,10 +20,22 @@ class PropertyViewSet(viewsets.ModelViewSet):
     serializer_class = PropertySerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        # Ensure tenant context is set from the authenticated user during DRF requests
+        from apps.accounts.tenant_context import set_current_tenant_id
+        if request.user and request.user.is_authenticated:
+            if hasattr(request.user, 'tenant_id') and request.user.tenant_id:
+                set_current_tenant_id(str(request.user.tenant_id))
+
     def get_queryset(self):
         # Property.objects automatically filters by the active tenant ID in thread context
-        # Optimized to select owner/tenant relationships and prefetch images to resolve N+1 queries
-        return Property.objects.select_related('created_by', 'tenant').prefetch_related('images').all()
+        # Optimized to select owner/tenant relationships and prefetch images/share_links to resolve N+1 queries
+        return Property.objects.select_related(
+            'created_by', 'assigned_to', 'tenant'
+        ).prefetch_related(
+            'images', 'share_links'
+        )
 
     def perform_create(self, serializer):
         # Automatically associate listing with the current user and their tenant
@@ -118,6 +131,12 @@ class PropertyViewSet(viewsets.ModelViewSet):
         Upload and associate multiple images to a property.
         Supports both synchronous processing (default) and async offloading.
         """
+        if not FeatureFlagService.is_enabled("ENABLE_IMAGE_PROCESSING"):
+            return Response(
+                {"detail": "Image processing features are currently disabled."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         property_obj = self.get_object()
         uploaded_files = request.FILES.getlist('images')
         
@@ -129,6 +148,10 @@ class PropertyViewSet(viewsets.ModelViewSet):
 
         created_images = []
         async_processing = request.query_params.get('async', 'false').lower() == 'true'
+        if async_processing and not FeatureFlagService.is_enabled("ENABLE_CELERY"):
+            # Fall back to synchronous in-request processing if Celery is disabled
+            async_processing = False
+
 
         # Get the starting display order
         last_img = property_obj.images.order_by('-display_order').first()
@@ -138,17 +161,18 @@ class PropertyViewSet(viewsets.ModelViewSet):
             display_order = start_order + idx
             
             if async_processing:
-                # 1. Asynchronous processing via Celery
-                # Save file to a temporary location
-                temp_dir = tempfile.gettempdir()
-                temp_file_suffix = f"_{file_obj.name}"
-                with tempfile.NamedTemporaryFile(dir=temp_dir, suffix=temp_file_suffix, delete=False) as temp_file:
-                    for chunk in file_obj.chunks():
-                        temp_file.write(chunk)
-                    temp_path = temp_file.name
+                # 1. Asynchronous processing via Celery (In-Memory base64)
+                import base64
+                file_bytes = file_obj.read()
+                base64_data = base64.b64encode(file_bytes).decode('utf-8')
                 
-                # Dispatch task to Celery worker
-                process_image_async.delay(str(property_obj.id), temp_path, display_order)
+                # Dispatch task to Celery worker in memory (no shared file paths)
+                process_image_async.delay(
+                    str(property_obj.id),
+                    base64_data,
+                    file_obj.name,
+                    display_order
+                )
             else:
                 # 2. Synchronous processing in-request
                 try:
@@ -191,3 +215,84 @@ class PropertyViewSet(viewsets.ModelViewSet):
         from .serializers import PropertyImageSerializer
         serializer = PropertyImageSerializer(created_images, many=True)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @decorators.action(
+        detail=True, 
+        methods=['delete'], 
+        url_path='images/(?P<image_id>[^/.]+)'
+    )
+    def delete_image(self, request, pk=None, image_id=None):
+        """
+        Delete a specific image associated with a property.
+        """
+        property_obj = self.get_object()
+        image_obj = get_object_or_404(PropertyImage, property=property_obj, id=image_id)
+        image_obj.delete()
+        log_audit_event(request.user, 'UPDATE', property_obj, {"deleted_image_id": str(image_id)})
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @decorators.action(detail=False, methods=['post'], url_path='generate-ai')
+    def generate_ai(self, request):
+        """
+        Uses Gemini to generate property title, description, headlines, and WhatsApp pitches
+        based on raw input text/bullet points and key metadata features.
+        """
+        if not FeatureFlagService.is_enabled("ENABLE_AI"):
+            return Response(
+                {"detail": "AI features are currently disabled."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        raw_notes = request.data.get('raw_notes')
+        if not raw_notes:
+            return Response(
+                {"detail": "The 'raw_notes' field is required."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        property_type = request.data.get('property_type', 'APARTMENT')
+        price = request.data.get('price')
+        bhk = request.data.get('bhk')
+        area = request.data.get('area')
+        city = request.data.get('city')
+
+        from .ai_service import PropertyAIService
+        data = PropertyAIService.generate(
+            raw_notes=raw_notes,
+            property_type=property_type,
+            price=price,
+            bhk=bhk,
+            area=area,
+            city=city
+        )
+        return Response(data, status=status.HTTP_200_OK)
+
+    @decorators.action(detail=True, methods=['get'], url_path='brochure')
+    def brochure(self, request, pk=None):
+        """
+        Generates and returns the URL to download a premium PDF brochure for the property.
+        """
+        property_obj = self.get_object()  # ensures the object belongs to the tenant
+        
+        # Trigger task execution
+        from .tasks import generate_brochure_pdf_task
+        saved_path = generate_brochure_pdf_task(property_obj.id)
+        
+        if not saved_path:
+            return Response(
+                {"detail": "Failed to generate property brochure."}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+            
+        # Get absolute storage URL
+        from django.core.files.storage import default_storage
+        file_url = default_storage.url(saved_path)
+        absolute_url = request.build_absolute_uri(file_url)
+        
+        # Log audit trail for brochure download
+        log_audit_event(request.user, 'VIEW', property_obj, {"action": "download_brochure"})
+        
+        return Response({"brochure_url": absolute_url}, status=status.HTTP_200_OK)
+
+
+

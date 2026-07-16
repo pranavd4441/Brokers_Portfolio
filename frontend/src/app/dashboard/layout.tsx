@@ -107,7 +107,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const navItems = [
     { href: '/dashboard', label: 'Overview', icon: <span>⊞</span> },
     { href: '/dashboard/properties/new', label: 'New Listing', icon: <span>＋</span> },
+    { href: '/dashboard/chats', label: 'Chats', icon: <span>💬</span> },
+    { href: '/dashboard/leads', label: 'Leads', icon: <span>🎯</span> },
     { href: '/dashboard/settings', label: 'Branding', icon: <span>✦</span> },
+    { href: '/dashboard/settings/profile', label: 'Profile', icon: <span>👤</span> },
   ];
 
   const workspaceName = user?.tenant?.name || 'My Workspace';

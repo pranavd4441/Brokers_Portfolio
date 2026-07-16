@@ -18,6 +18,11 @@ class TenantManager(models.Manager):
         tenant_id = get_current_tenant_id()
         if tenant_id:
             return queryset.filter(tenant_id=tenant_id)
+            
+        from .tenant_context import is_tenant_enforcement_active
+        if is_tenant_enforcement_active():
+            return queryset.none()
+            
         return queryset
 
 

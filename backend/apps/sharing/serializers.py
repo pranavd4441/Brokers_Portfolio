@@ -17,15 +17,31 @@ class ShareLinkSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'slug', 'created_at']
 
+    def _get_site_url(self):
+        # Priority:
+        # 1. Environment variable if explicitly configured (non-localhost)
+        # 2. Dynamic site URL from the active request context, mapping :8000 to :3000
+        # 3. Default fallback
+        env_site_url = os.getenv('NEXT_PUBLIC_SITE_URL')
+        if env_site_url and env_site_url != 'http://localhost':
+            return env_site_url.rstrip('/')
+
+        request = self.context.get('request')
+        if request is not None:
+            site_url = request.build_absolute_uri('/')[:-1]
+            site_url = site_url.replace(':8000', ':3000')
+            return site_url
+
+        return os.getenv('NEXT_PUBLIC_SITE_URL', 'http://localhost').rstrip('/')
+
     def get_full_share_url(self, obj):
-        # Build the public front-end landing page URL
-        site_url = os.getenv('NEXT_PUBLIC_SITE_URL', 'http://localhost')
+        site_url = self._get_site_url()
         return f"{site_url}/p/{obj.slug}"
 
     def get_whatsapp_share_text(self, obj):
         # Construct a beautiful pre-formatted marketing pitch for the broker
         prop = obj.property
-        site_url = os.getenv('NEXT_PUBLIC_SITE_URL', 'http://localhost')
+        site_url = self._get_site_url()
         full_url = f"{site_url}/p/{obj.slug}"
         
         # Format the price nicely

@@ -1,4 +1,5 @@
 import hashlib
+import logging
 from datetime import timedelta
 from django.utils import timezone
 from django.db.models import Count, Q
@@ -8,9 +9,10 @@ from rest_framework.throttling import UserRateThrottle
 from .models import AnalyticsEvent
 from apps.properties.models import Property
 
-class PublicAnalyticsThrottle(UserRateThrottle):
-    rate = '60/minute'
+logger = logging.getLogger(__name__)
 
+from property_os.throttling import PublicRateThrottle
+from property_os.feature_flags import FeatureFlagService
 
 class PublicEventLogView(generics.CreateAPIView):
     """
@@ -18,9 +20,14 @@ class PublicEventLogView(generics.CreateAPIView):
     Extracts IP hash, device type, and browser signature directly from request headers.
     """
     permission_classes = [permissions.AllowAny]
-    throttle_classes = [PublicAnalyticsThrottle]
+    throttle_classes = [PublicRateThrottle]
 
     def post(self, request, *args, **kwargs):
+        if not FeatureFlagService.is_enabled("ENABLE_ANALYTICS"):
+            return Response(
+                {"detail": "Analytics features are currently disabled."},
+                status=status.HTTP_403_FORBIDDEN
+            )
         property_id = request.data.get('property')
         event_type = request.data.get('event_type')
 
@@ -78,6 +85,59 @@ class PublicEventLogView(generics.CreateAPIView):
             ip_hash=ip_hash
         )
 
+        # 5. Save Lead and Trigger Real-time Lead Alerts via WhatsApp (using a background thread to prevent API blocking)
+        if event_type in ['WHATSAPP_CLICK', 'PHONE_CLICK']:
+            buyer_name = request.data.get('buyer_name', 'A prospective buyer')
+            buyer_phone = request.data.get('buyer_phone', 'Not captured')
+
+            # Create Lead record in the database
+            try:
+                from apps.leads.models import Lead
+                Lead.objects.create(
+                    tenant=property_obj.tenant,
+                    property=property_obj,
+                    source=event_type,
+                    buyer_name=buyer_name,
+                    phone=buyer_phone,
+                    analytics_event=event
+                )
+            except Exception as le:
+                logger.error(f"Failed to create Lead record: {str(le)}")
+
+            broker = property_obj.created_by
+            if broker and broker.phone:
+                broker_phone = broker.phone
+                
+                # Resolve public link in main thread (thread-safe database access)
+                from apps.sharing.models import ShareLink
+                share_link = ShareLink.objects_unfiltered.filter(property=property_obj).first()
+                slug = share_link.slug if share_link else str(property_obj.id)
+                host = request.build_absolute_uri('/')[:-1].replace(':8000', ':3000')
+                public_url = f"{host}/p/{slug}"
+                
+                event_label = "WhatsApp Click" if event_type == 'WHATSAPP_CLICK' else "Phone Call Click"
+                
+                alert_body = (
+                    f"⚡ *New Lead - {event_label}*\n"
+                    f"👤 *Name:* {buyer_name}\n"
+                    f"📞 *Phone:* {buyer_phone}\n\n"
+                    f"🏡 *Listing:* {property_obj.title}\n"
+                    f"💵 *Price:* ₹{float(property_obj.price):,.2f}\n"
+                    f"🔗 *Listing Link:* {public_url}\n\n"
+                    "📞 *Call them within 5 minutes — fastest broker wins.*"
+                )
+                
+                import threading
+                def send_alert_async(phone, body):
+                    try:
+                        from apps.whatsapp.services import get_whatsapp_gateway
+                        gateway = get_whatsapp_gateway()
+                        gateway.send_message(phone, body)
+                    except Exception as le:
+                        logger.error(f"Failed to dispatch WhatsApp lead alert: {str(le)}")
+
+                threading.Thread(target=send_alert_async, args=(broker_phone, alert_body), daemon=True).start()
+
         return Response(
             {"detail": "Event logged successfully.", "event_id": str(event.id)},
             status=status.HTTP_201_CREATED
@@ -90,8 +150,14 @@ class DashboardMetricsView(generics.RetrieveAPIView):
     Isolated by Tenant.
     """
     permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [UserRateThrottle]
 
     def get(self, request, *args, **kwargs):
+        if not FeatureFlagService.is_enabled("ENABLE_ANALYTICS"):
+            return Response(
+                {"detail": "Analytics features are currently disabled."},
+                status=status.HTTP_403_FORBIDDEN
+            )
         # Property.objects automatically isolates queries to current tenant
         properties = Property.objects.all()
         total_properties = properties.count()
