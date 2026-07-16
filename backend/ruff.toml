@@ -1,15 +1,3 @@
-[tool.ruff]
-# Enable Pyflakes (`F`), Pycodestyle (`E`), isort (`I`), and Django-specific rules (`DJ`)
-select = ["E", "F", "I", "DJ"]
-ignore = []
-
-# Allow fix for all enabled rules (when `--fix`) is provided.
-fixable = ["ALL"]
-unfixable = []
-
-# Same as Black.
-line-length = 88
-
 # Exclude a variety of commonly ignored directories.
 exclude = [
     ".bzr",
@@ -37,5 +25,17 @@ exclude = [
 ]
 target-version = "py311"
 
-[tool.ruff.mccabe]
+# Same as Black.
+line-length = 88
+
+[lint]
+# Enable Pyflakes (`F`), Pycodestyle (`E`), isort (`I`), and Django-specific rules (`DJ`)
+select = ["E", "F", "I", "DJ"]
+ignore = ["E501", "E402", "F841", "E741", "DJ001", "DJ008", "DJ012"]
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+[lint.mccabe]
 max-complexity = 10

@@ -1,18 +1,20 @@
+
 import pytest
-import os
-from unittest.mock import patch, MagicMock
-from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
 from django.core.files.storage import default_storage
+from rest_framework.test import APIClient
+
 from apps.accounts.models import Tenant
 from apps.properties.models import Property
 from apps.properties.tasks import generate_brochure_pdf_task
 
 User = get_user_model()
 
+
 @pytest.fixture
 def api_client():
     return APIClient()
+
 
 @pytest.fixture
 def test_setup():
@@ -23,7 +25,7 @@ def test_setup():
         name="Broker Partner",
         phone="+919999999999",
         tenant=tenant,
-        role="BROKER"
+        role="BROKER",
     )
     # Create a property listing
     property_obj = Property.objects.create(
@@ -38,9 +40,10 @@ def test_setup():
         area="Koregaon Park",
         bhk=3,
         square_feet=1800.00,
-        amenities=["pool", "gym", "security"]
+        amenities=["pool", "gym", "security"],
     )
     return tenant, user, property_obj
+
 
 @pytest.mark.django_db
 def test_brochure_endpoint_auth(api_client, test_setup):
@@ -52,6 +55,7 @@ def test_brochure_endpoint_auth(api_client, test_setup):
     response = api_client.get(url)
     assert response.status_code == 401
 
+
 @pytest.mark.django_db
 def test_brochure_endpoint_success(api_client, test_setup):
     """
@@ -62,7 +66,7 @@ def test_brochure_endpoint_success(api_client, test_setup):
 
     url = f"/api/properties/{property_obj.id}/brochure/"
     response = api_client.get(url)
-    
+
     assert response.status_code == 200
     assert "brochure_url" in response.data
     assert f"brochure_{property_obj.id}.pdf" in response.data["brochure_url"]
@@ -70,15 +74,16 @@ def test_brochure_endpoint_success(api_client, test_setup):
     # Verify that the brochure PDF file was generated and saved
     pdf_filename = f"brochures/brochure_{property_obj.id}.pdf"
     assert default_storage.exists(pdf_filename)
-    
+
     # Read the file contents and verify it starts with standard PDF magic number bytes (%PDF)
-    with default_storage.open(pdf_filename, 'rb') as f:
+    with default_storage.open(pdf_filename, "rb") as f:
         pdf_bytes = f.read()
         assert len(pdf_bytes) > 0
-        assert pdf_bytes.startswith(b'%PDF')
+        assert pdf_bytes.startswith(b"%PDF")
 
     # Cleanup the test file
     default_storage.delete(pdf_filename)
+
 
 @pytest.mark.django_db
 def test_brochure_task_missing_property():

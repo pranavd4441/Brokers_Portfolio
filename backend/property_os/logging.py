@@ -1,11 +1,12 @@
 import contextvars
-import logging
 import json
+import logging
 import os
 from datetime import datetime
 
 # Context variable containing request-specific log fields
-_request_context = contextvars.ContextVar('request_context', default=None)
+_request_context = contextvars.ContextVar("request_context", default=None)
+
 
 def get_log_context():
     ctx = _request_context.get()
@@ -14,17 +15,20 @@ def get_log_context():
         _request_context.set(ctx)
     return ctx
 
+
 def set_log_context(key, value):
     ctx = get_log_context()
     ctx[key] = value
 
+
 def clear_log_context():
     _request_context.set(None)
+
 
 class JSONFormatter(logging.Formatter):
     def format(self, record):
         ctx = _request_context.get() or {}
-        
+
         # Build structured JSON log payload
         log_data = {
             "timestamp": datetime.utcfromtimestamp(record.created).isoformat() + "Z",
@@ -46,13 +50,13 @@ class JSONFormatter(logging.Formatter):
             "version": os.getenv("RELEASE_VERSION", "1.0.0"),
             "worker_pid": os.getpid(),
         }
-        
+
         # Include exception tracebacks if present
         if record.exc_info:
             log_data["traceback"] = self.formatException(record.exc_info)
-            
+
         # Ensure any extra properties passed via logging extra are included
         if hasattr(record, "extra_fields"):
             log_data.update(record.extra_fields)
-            
+
         return json.dumps(log_data)

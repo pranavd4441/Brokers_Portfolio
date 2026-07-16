@@ -1,11 +1,14 @@
 import threading
 import time
+
 from .factory import SecretProviderFactory
+
 
 class SecretsManager:
     """
     Thread-safe Secrets Manager that caches secret requests to optimize speed and limit api calls.
     """
+
     _instance = None
     _lock = threading.Lock()
 
@@ -23,22 +26,24 @@ class SecretsManager:
 
     def get_secret(self, name, default=None):
         now = time.time()
-        
+
         with self.cache_lock:
             if name in self.cache:
                 val, expiry = self.cache[name]
                 if now < expiry:
                     return val
-                    
+
         provider = SecretProviderFactory.get_provider()
         val = provider.get_secret(name, default)
-        
+
         with self.cache_lock:
             self.cache[name] = (val, now + self.cache_ttl)
-            
+
         return val
 
+
 _manager = SecretsManager()
+
 
 def get_secret(name, default=None):
     """

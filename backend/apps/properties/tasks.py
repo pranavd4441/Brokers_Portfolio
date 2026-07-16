@@ -1,11 +1,14 @@
 import io
+
 from celery import shared_task
 from django.conf import settings
-from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.template.loader import render_to_string
 from xhtml2pdf import pisa
+
 from .models import Property
+
 
 @shared_task
 def generate_brochure_pdf_task(property_id):
@@ -29,9 +32,9 @@ def generate_brochure_pdf_task(property_id):
     if property_obj.images.exists():
         first_image = property_obj.images.first()
         url_str = first_image.url
-        media_url = getattr(settings, 'MEDIA_URL', '/media/')
+        media_url = getattr(settings, "MEDIA_URL", "/media/")
         if url_str.startswith(media_url):
-            relative_path = url_str.replace(media_url, '', 1)
+            relative_path = url_str.replace(media_url, "", 1)
             try:
                 image_src = default_storage.path(relative_path)
             except NotImplementedError:
@@ -51,16 +54,16 @@ def generate_brochure_pdf_task(property_id):
 
     # Construct context
     context = {
-        'property': property_obj,
-        'brand_color': brand_color,
-        'tenant_name': tenant_name,
-        'image_src': image_src,
-        'price_str': price_str,
-        'property_type_label': property_obj.get_property_type_display(),
+        "property": property_obj,
+        "brand_color": brand_color,
+        "tenant_name": tenant_name,
+        "image_src": image_src,
+        "price_str": price_str,
+        "property_type_label": property_obj.get_property_type_display(),
     }
 
     # Render HTML template
-    html_content = render_to_string('properties/brochure.html', context)
+    html_content = render_to_string("properties/brochure.html", context)
 
     # Compile HTML to PDF via Pisa
     pdf_buffer = io.BytesIO()
@@ -71,10 +74,10 @@ def generate_brochure_pdf_task(property_id):
 
     # Save PDF file to storage
     pdf_filename = f"brochures/brochure_{property_id}.pdf"
-    
+
     # Clean previous if exists
     if default_storage.exists(pdf_filename):
         default_storage.delete(pdf_filename)
-        
+
     saved_path = default_storage.save(pdf_filename, ContentFile(pdf_buffer.getvalue()))
     return saved_path

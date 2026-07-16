@@ -1,7 +1,9 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from apps.properties.models import Property
+
 from apps.audit.utils import log_audit_event
+from apps.properties.models import Property
+
 
 class Command(BaseCommand):
     help = "Checks and marks properties past their expires_at date as EXPIRED."
@@ -10,25 +12,30 @@ class Command(BaseCommand):
         now = timezone.now()
         expired_properties = Property.objects_unfiltered.filter(
             expires_at__lte=now
-        ).exclude(status__in=['SOLD', 'EXPIRED'])
+        ).exclude(status__in=["SOLD", "EXPIRED"])
 
         count = expired_properties.count()
         for prop in expired_properties:
             old_status = prop.status
-            prop.status = 'EXPIRED'
-            prop.save(update_fields=['status'])
-            
+            prop.status = "EXPIRED"
+            prop.save(update_fields=["status"])
+
             # Find a broker user belonging to the tenant to log the audit event
             broker = prop.created_by
             if not broker:
-                broker = prop.tenant.users.filter(role='OWNER').first()
-                
+                broker = prop.tenant.users.filter(role="OWNER").first()
+
             if broker:
                 log_audit_event(
                     user=broker,
-                    action='UPDATE',
+                    action="UPDATE",
                     instance=prop,
-                    changes_payload={"status": {"old": old_status, "new": 'EXPIRED'}, "note": "Auto-expired by system"}
+                    changes_payload={
+                        "status": {"old": old_status, "new": "EXPIRED"},
+                        "note": "Auto-expired by system",
+                    },
                 )
 
-        self.stdout.write(self.style.SUCCESS(f"Successfully auto-expired {count} property listings."))
+        self.stdout.write(
+            self.style.SUCCESS(f"Successfully auto-expired {count} property listings.")
+        )

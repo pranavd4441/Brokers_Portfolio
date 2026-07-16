@@ -1,20 +1,24 @@
 from django.core.management.base import BaseCommand
 from django.db import connection
 
+
 class Command(BaseCommand):
     """
     Management command to audit database statistics, check table sizes, index scans,
     detect slow queries, and monitor vacuum schedules.
     """
+
     help = "Audits the database for performance metrics, indexes, slow queries, and table statistics."
 
     def handle(self, *args, **options):
-        self.stdout.write(self.style.SUCCESS("[PropertyOS] Starting database enterprise audit..."))
-        
-        db_engine = connection.settings_dict['ENGINE']
+        self.stdout.write(
+            self.style.SUCCESS("[PropertyOS] Starting database enterprise audit...")
+        )
+
+        db_engine = connection.settings_dict["ENGINE"]
         self.stdout.write(f"Database Engine: {db_engine}")
-        
-        if 'postgresql' in db_engine:
+
+        if "postgresql" in db_engine:
             self.audit_postgres()
         else:
             self.audit_sqlite()
@@ -76,7 +80,9 @@ class Command(BaseCommand):
             rows = cursor.fetchall()
             if rows:
                 for row in rows:
-                    self.stdout.write(f"PID: {row[0]} | Duration: {row[1]} | State: {row[3]} | Query: {row[2][:100]}")
+                    self.stdout.write(
+                        f"PID: {row[0]} | Duration: {row[1]} | State: {row[3]} | Query: {row[2][:100]}"
+                    )
             else:
                 self.stdout.write("No active long-running queries detected.")
 
@@ -90,9 +96,11 @@ class Command(BaseCommand):
                 # Get row count
                 cursor.execute(f"SELECT COUNT(*) FROM {table};")  # nosec B608
                 count = cursor.fetchone()[0]
-                
+
                 # Get indexes
                 cursor.execute(f"PRAGMA index_list({table});")
                 indexes = [row[1] for row in cursor.fetchall()]
-                
-                self.stdout.write(f"Table: {table:25} | Row Count: {count:5} | Indexes: {', '.join(indexes) if indexes else 'None'}")
+
+                self.stdout.write(
+                    f"Table: {table:25} | Row Count: {count:5} | Indexes: {', '.join(indexes) if indexes else 'None'}"
+                )

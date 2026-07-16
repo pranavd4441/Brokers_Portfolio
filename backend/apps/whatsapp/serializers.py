@@ -1,10 +1,12 @@
 from rest_framework import serializers
-from .models import WhatsAppSession, ConversationMessage
+
+from .models import ConversationMessage, WhatsAppSession
+
 
 class ConversationMessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ConversationMessage
-        fields = ['id', 'direction', 'message_type', 'body', 'media_url', 'timestamp']
+        fields = ["id", "direction", "message_type", "body", "media_url", "timestamp"]
 
 
 class WhatsAppSessionSerializer(serializers.ModelSerializer):
@@ -12,4 +14,11 @@ class WhatsAppSessionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = WhatsAppSession
-        fields = ['phone_number', 'state', 'metadata', 'temp_images', 'updated_at', 'messages']
+        fields = [
+            "phone_number",
+            "state",
+            "metadata",
+            "temp_images",
+            "updated_at",
+            "messages",
+        ]
