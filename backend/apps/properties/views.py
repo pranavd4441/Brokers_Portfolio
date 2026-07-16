@@ -29,6 +29,8 @@ class PropertyViewSet(viewsets.ModelViewSet):
                 set_current_tenant_id(str(request.user.tenant_id))
 
     def get_queryset(self):
+        # Property.objects automatically filters by the active tenant ID in thread context
+        # Optimized to select owner/tenant relationships and prefetch images/share_links to resolve N+1 queries
         return Property.objects.select_related(
             'created_by', 'assigned_to', 'tenant'
         ).prefetch_related(

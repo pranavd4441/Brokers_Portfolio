@@ -90,6 +90,10 @@ class PublicPropertyResolverView(generics.RetrieveAPIView):
         # 4. Serialize property
         property_serializer = PropertySerializer(property_obj)
         tenant_serializer = TenantSerializer(tenant_obj)
+        
+        prop_data = property_serializer.data
+        brand_data = tenant_serializer.data
+        owner = property_obj.created_by
 
         # Retrieve views count from AnalyticsEvent
         from apps.analytics.models import AnalyticsEvent
