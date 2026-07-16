@@ -1,17 +1,20 @@
-import pytest
 import json
-from unittest.mock import patch, MagicMock
-from rest_framework.test import APIClient
-from django.urls import reverse
+from unittest.mock import MagicMock, patch
+
+import pytest
 from django.contrib.auth import get_user_model
+from rest_framework.test import APIClient
+
 from apps.accounts.models import Tenant
 from apps.properties.ai_service import PropertyAIService
 
 User = get_user_model()
 
+
 @pytest.fixture
 def api_client():
     return APIClient()
+
 
 @pytest.fixture
 def test_setup():
@@ -22,9 +25,10 @@ def test_setup():
         name="Test Agent",
         phone="+918888888888",
         tenant=tenant,
-        role="BROKER"
+        role="BROKER",
     )
     return tenant, user
+
 
 @pytest.mark.django_db
 def test_ai_generation_endpoint_auth(api_client):
@@ -35,15 +39,16 @@ def test_ai_generation_endpoint_auth(api_client):
     response = api_client.post(url, {"raw_notes": "test"})
     assert response.status_code == 401
 
+
 @pytest.mark.django_db
-@patch('apps.properties.ai_service.PropertyAIService.generate')
+@patch("apps.properties.ai_service.PropertyAIService.generate")
 def test_ai_generation_endpoint_success(mock_generate, api_client, test_setup):
     """
     Ensure authenticated users can generate AI content successfully.
     """
     tenant, user = test_setup
     api_client.force_authenticate(user=user)
-    
+
     mock_data = {
         "title": "Stunning 3 BHK Apartment",
         "description": "Premium 3 BHK Apartment in Bandra West.",
@@ -51,8 +56,8 @@ def test_ai_generation_endpoint_success(mock_generate, api_client, test_setup):
         "whatsapp_pitches": [
             {"type": "Warm / Friendly", "text": "Warm pitch"},
             {"type": "Professional / Formal", "text": "Formal pitch"},
-            {"type": "Investor / Fact-focused", "text": "Investor pitch"}
-        ]
+            {"type": "Investor / Fact-focused", "text": "Investor pitch"},
+        ],
     }
     mock_generate.return_value = mock_data
 
@@ -63,10 +68,10 @@ def test_ai_generation_endpoint_success(mock_generate, api_client, test_setup):
         "price": "30000000",
         "bhk": "3",
         "area": "Bandra West",
-        "city": "Mumbai"
+        "city": "Mumbai",
     }
-    response = api_client.post(url, payload, format='json')
-    
+    response = api_client.post(url, payload, format="json")
+
     assert response.status_code == 200
     assert response.data["title"] == "Stunning 3 BHK Apartment"
     assert len(response.data["whatsapp_pitches"]) == 3
@@ -76,8 +81,9 @@ def test_ai_generation_endpoint_success(mock_generate, api_client, test_setup):
         price="30000000",
         bhk="3",
         area="Bandra West",
-        city="Mumbai"
+        city="Mumbai",
     )
+
 
 @pytest.mark.django_db
 def test_ai_generation_endpoint_missing_notes(api_client, test_setup):
@@ -88,37 +94,56 @@ def test_ai_generation_endpoint_missing_notes(api_client, test_setup):
     api_client.force_authenticate(user=user)
 
     url = "/api/properties/generate-ai/"
-    response = api_client.post(url, {}, format='json')
+    response = api_client.post(url, {}, format="json")
     assert response.status_code == 400
     assert "raw_notes" in response.data["detail"]
 
+
 @pytest.mark.django_db
-@patch('urllib.request.urlopen')
-@patch('django.conf.settings.GEMINI_API_KEY', 'fake_gemini_api_key_123')
+@patch("urllib.request.urlopen")
+@patch("django.conf.settings.GEMINI_API_KEY", "fake_gemini_api_key_123")
 def test_ai_service_gemini_success(mock_urlopen):
     """
     Test that the PropertyAIService parses the API response correctly when Gemini returns valid JSON.
     """
     mock_response = MagicMock()
     mock_payload = {
-        "candidates": [{
-            "content": {
-                "parts": [{
-                    "text": json.dumps({
-                        "title": "Beautiful Villa in Goa",
-                        "description": "Lovely 4 BHK Villa in Goa.",
-                        "headlines": ["Goa Villa Deal", "Premium 4 BHK Goa"],
-                        "whatsapp_pitches": [
-                            {"type": "Warm / Friendly", "text": "Warm pitch text"},
-                            {"type": "Professional / Formal", "text": "Formal pitch text"},
-                            {"type": "Investor / Fact-focused", "text": "Investor pitch text"}
-                        ]
-                    })
-                }]
+        "candidates": [
+            {
+                "content": {
+                    "parts": [
+                        {
+                            "text": json.dumps(
+                                {
+                                    "title": "Beautiful Villa in Goa",
+                                    "description": "Lovely 4 BHK Villa in Goa.",
+                                    "headlines": [
+                                        "Goa Villa Deal",
+                                        "Premium 4 BHK Goa",
+                                    ],
+                                    "whatsapp_pitches": [
+                                        {
+                                            "type": "Warm / Friendly",
+                                            "text": "Warm pitch text",
+                                        },
+                                        {
+                                            "type": "Professional / Formal",
+                                            "text": "Formal pitch text",
+                                        },
+                                        {
+                                            "type": "Investor / Fact-focused",
+                                            "text": "Investor pitch text",
+                                        },
+                                    ],
+                                }
+                            )
+                        }
+                    ]
+                }
             }
-        }]
+        ]
     }
-    mock_response.read.return_value = json.dumps(mock_payload).encode('utf-8')
+    mock_response.read.return_value = json.dumps(mock_payload).encode("utf-8")
     mock_urlopen.return_value.__enter__.return_value = mock_response
 
     res = PropertyAIService.generate(
@@ -127,15 +152,16 @@ def test_ai_service_gemini_success(mock_urlopen):
         price="40000000",
         bhk="4",
         area="Anjuna",
-        city="Goa"
+        city="Goa",
     )
 
     assert res["title"] == "Beautiful Villa in Goa"
     assert res["description"] == "Lovely 4 BHK Villa in Goa."
     assert len(res["whatsapp_pitches"]) == 3
 
+
 @pytest.mark.django_db
-@patch('django.conf.settings.GEMINI_API_KEY', '')
+@patch("django.conf.settings.GEMINI_API_KEY", "")
 def test_ai_service_fallback_system():
     """
     Test that the service correctly falls back to template generation when GEMINI_API_KEY is not configured.
@@ -146,7 +172,7 @@ def test_ai_service_fallback_system():
         price="6000000",
         bhk="2",
         area="Kalyani Nagar",
-        city="Pune"
+        city="Pune",
     )
 
     assert res["title"] == "2 BHK Apartment in Kalyani Nagar"

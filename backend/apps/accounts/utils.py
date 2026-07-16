@@ -1,4 +1,4 @@
-import re
+
 
 def parse_user_agent(user_agent_str):
     """
@@ -6,9 +6,9 @@ def parse_user_agent(user_agent_str):
     """
     if not user_agent_str:
         return "Unknown", "Unknown"
-    
+
     ua = user_agent_str.lower()
-    
+
     # Simple OS detection
     if "windows" in ua:
         os_name = "Windows"
@@ -22,7 +22,7 @@ def parse_user_agent(user_agent_str):
         os_name = "iOS"
     else:
         os_name = "Unknown OS"
-        
+
     # Simple Browser detection
     if "chrome" in ua or "chromium" in ua:
         if "edg" in ua:
@@ -39,7 +39,7 @@ def parse_user_agent(user_agent_str):
         browser_name = "Internet Explorer"
     else:
         browser_name = "Unknown Browser"
-        
+
     return browser_name, os_name
 
 
@@ -47,11 +47,11 @@ def get_client_ip(request):
     """
     Extracts the client's public IP address safely from headers.
     """
-    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
     if x_forwarded_for:
-        ip = x_forwarded_for.split(',')[0].strip()
+        ip = x_forwarded_for.split(",")[0].strip()
     else:
-        ip = request.META.get('REMOTE_ADDR')
+        ip = request.META.get("REMOTE_ADDR")
     return ip
 
 
@@ -59,9 +59,13 @@ def get_client_city(request):
     """
     Extracts the client's city from standard proxy geo headers (Render, CF).
     """
-    city = request.headers.get('CF-IPCity') or request.META.get('HTTP_CF_IPCITY')
+    city = request.headers.get("CF-IPCity") or request.META.get("HTTP_CF_IPCITY")
     if not city:
-        city = request.headers.get('X-AppEngine-City') or request.META.get('HTTP_X_APPENGINE_CITY')
+        city = request.headers.get("X-AppEngine-City") or request.META.get(
+            "HTTP_X_APPENGINE_CITY"
+        )
     if not city:
-        city = request.headers.get('X-Render-Geo-City') or request.META.get('HTTP_X_RENDER_GEO_CITY')
+        city = request.headers.get("X-Render-Geo-City") or request.META.get(
+            "HTTP_X_RENDER_GEO_CITY"
+        )
     return city or "Unknown"

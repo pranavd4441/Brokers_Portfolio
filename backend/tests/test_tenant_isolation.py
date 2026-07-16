@@ -1,12 +1,15 @@
 import pytest
 from rest_framework.test import APIClient
+
 from apps.accounts.models import Tenant, User
+from apps.accounts.tenant_context import clear_current_tenant_id, set_current_tenant_id
 from apps.properties.models import Property
-from apps.accounts.tenant_context import set_current_tenant_id, clear_current_tenant_id
+
 
 @pytest.fixture
 def api_client():
     return APIClient()
+
 
 @pytest.fixture
 def create_tenant_data():
@@ -17,20 +20,26 @@ def create_tenant_data():
             password="secure_password_123",
             name=name,
             tenant=tenant,
-            role="OWNER"
+            role="OWNER",
         )
         return tenant, user
+
     return _create
+
 
 @pytest.mark.django_db
 def test_tenant_query_isolation(create_tenant_data):
     """
-    Test that database queries are automatically and strictly isolated 
+    Test that database queries are automatically and strictly isolated
     by the tenant_id in the thread-local context.
     """
     # 1. Create Tenant A and Tenant B
-    tenant_a, user_a = create_tenant_data("Broker A", "broker.a@example.com", "Agency A")
-    tenant_b, user_b = create_tenant_data("Broker B", "broker.b@example.com", "Agency B")
+    tenant_a, user_a = create_tenant_data(
+        "Broker A", "broker.a@example.com", "Agency A"
+    )
+    tenant_b, user_b = create_tenant_data(
+        "Broker B", "broker.b@example.com", "Agency B"
+    )
 
     # 2. Create properties inside Tenant A
     set_current_tenant_id(str(tenant_a.id))
@@ -40,7 +49,7 @@ def test_tenant_query_isolation(create_tenant_data):
         price=15000000.00,
         city="Pune",
         area="Baner",
-        created_by=user_a
+        created_by=user_a,
     )
     prop_a2 = Property.objects.create(
         title="Apartment A2",
@@ -48,7 +57,7 @@ def test_tenant_query_isolation(create_tenant_data):
         price=8000000.00,
         city="Pune",
         area="Baner",
-        created_by=user_a
+        created_by=user_a,
     )
     clear_current_tenant_id()
 
@@ -60,7 +69,7 @@ def test_tenant_query_isolation(create_tenant_data):
         price=25000000.00,
         city="Pune",
         area="Kalyani Nagar",
-        created_by=user_b
+        created_by=user_b,
     )
     clear_current_tenant_id()
 
@@ -85,12 +94,16 @@ def test_tenant_query_isolation(create_tenant_data):
 @pytest.mark.django_db
 def test_api_tenant_isolation(api_client, create_tenant_data):
     """
-    Test that API requests using JWT authentication automatically 
+    Test that API requests using JWT authentication automatically
     restrict access to data belonging only to the user's active tenant.
     """
     # 1. Setup Tenants and Users
-    tenant_a, user_a = create_tenant_data("Broker A", "broker.a@example.com", "Agency A")
-    tenant_b, user_b = create_tenant_data("Broker B", "broker.b@example.com", "Agency B")
+    tenant_a, user_a = create_tenant_data(
+        "Broker A", "broker.a@example.com", "Agency A"
+    )
+    tenant_b, user_b = create_tenant_data(
+        "Broker B", "broker.b@example.com", "Agency B"
+    )
 
     # 2. Create property in Tenant A
     set_current_tenant_id(str(tenant_a.id))
@@ -100,7 +113,7 @@ def test_api_tenant_isolation(api_client, create_tenant_data):
         price=10000000.00,
         city="Mumbai",
         area="Bandra",
-        created_by=user_a
+        created_by=user_a,
     )
     clear_current_tenant_id()
 
@@ -108,8 +121,8 @@ def test_api_tenant_isolation(api_client, create_tenant_data):
     api_client.force_authenticate(user=user_b)
 
     # 4. Attempt to retrieve Tenant A's property via API
-    # Since Property.objects.all() is tenant-filtered, User B's request 
-    # (whose tenant context is Tenant B) will query Tenant B's properties 
+    # Since Property.objects.all() is tenant-filtered, User B's request
+    # (whose tenant context is Tenant B) will query Tenant B's properties
     # and find nothing, returning a 404 Not Found.
     response = api_client.get(f"/api/properties/{prop_a.id}/")
     assert response.status_code == 404

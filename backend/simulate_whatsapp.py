@@ -1,18 +1,18 @@
 import os
-import sys
+
 import django
 
 # Initialize Django
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'property_os.settings')
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "property_os.settings")
 django.setup()
 
 from django.contrib.auth import get_user_model
-from apps.whatsapp.models import WhatsAppSession, ConversationMessage
-from apps.properties.models import Property
-from apps.sharing.models import ShareLink
 from rest_framework.test import APIClient
 
+from apps.whatsapp.models import ConversationMessage, WhatsAppSession
+
 User = get_user_model()
+
 
 def print_help():
     print("\n--- Available Commands ---")
@@ -24,6 +24,7 @@ def print_help():
     print("  done           : Finalize and publish listing (when in COLLECTING state)")
     print("  exit / quit    : Exit this simulation script")
     print("--------------------------\n")
+
 
 def main():
     print("====================================================")
@@ -39,7 +40,7 @@ def main():
     print("Select a Broker to simulate:")
     for idx, u in enumerate(users, 1):
         print(f"  [{idx}] {u.name} ({u.email}) - Phone: '{u.phone or 'Not Set'}'")
-    
+
     try:
         sel = int(input("\nEnter selection number: ")) - 1
         user = users[sel]
@@ -51,7 +52,9 @@ def main():
     phone_number = user.phone
     if not phone_number:
         print(f"\nBroker {user.name} does not have a phone number configured.")
-        phone_number = input("Enter a simulated phone number (e.g. +919999999999): ").strip()
+        phone_number = input(
+            "Enter a simulated phone number (e.g. +919999999999): "
+        ).strip()
         if not phone_number:
             print("Phone number required to simulate. Exiting.")
             return
@@ -60,7 +63,7 @@ def main():
         print(f"✓ Configured user phone number to: {phone_number}")
 
     # Ensure phone number doesn't have whatsapp prefix for local check
-    clean_phone = phone_number.replace('whatsapp:', '').strip()
+    clean_phone = phone_number.replace("whatsapp:", "").strip()
 
     # 3. Get or Create Session
     session, _ = WhatsAppSession.objects.get_or_create(phone_number=clean_phone)
@@ -71,7 +74,9 @@ def main():
     print(f"\nSimulating WhatsApp Chat for {user.name} ({clean_phone})...")
     print_help()
 
-    last_msg = ConversationMessage.objects.filter(session=session).order_by('timestamp').last()
+    last_msg = (
+        ConversationMessage.objects.filter(session=session).order_by("timestamp").last()
+    )
     last_timestamp = last_msg.timestamp if last_msg else None
 
     client = APIClient()
@@ -89,7 +94,7 @@ def main():
             if not user_input:
                 continue
 
-            if user_input.lower() in ['exit', 'quit']:
+            if user_input.lower() in ["exit", "quit"]:
                 print("Exiting simulator.")
                 break
 
@@ -98,38 +103,37 @@ def main():
                 # Provide a default real estate image if they just type "image"
                 if not url:
                     url = "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80"
-                
+
                 print(f"\n[Simulating Uploading Image: {url}]")
                 payload = {
                     "From": f"whatsapp:{clean_phone}",
                     "Body": "",
                     "NumMedia": "1",
                     "MediaUrl0": url,
-                    "MediaContentType0": "image/jpeg"
+                    "MediaContentType0": "image/jpeg",
                 }
             else:
                 # Send text payload to webhook endpoint
                 payload = {
                     "From": f"whatsapp:{clean_phone}",
                     "Body": user_input,
-                    "NumMedia": "0"
+                    "NumMedia": "0",
                 }
-            
+
             # Post to endpoint
-            response = client.post('/api/whatsapp/webhook/', payload)
-            
+            response = client.post("/api/whatsapp/webhook/", payload)
+
             if response.status_code != 200:
                 print(f"API Error ({response.status_code}): {response.data}")
                 continue
 
             # Fetch new OUTBOUND messages
             qs = ConversationMessage.objects.filter(
-                session=session,
-                direction='OUTBOUND'
+                session=session, direction="OUTBOUND"
             )
             if last_timestamp:
                 qs = qs.filter(timestamp__gt=last_timestamp)
-            new_outbound = qs.order_by('timestamp')
+            new_outbound = qs.order_by("timestamp")
 
             for msg in new_outbound:
                 print(f"\n\033[92mPropertyOS Bot:\033[0m\n{msg.body}")
@@ -144,5 +148,6 @@ def main():
         except Exception as e:
             print(f"\nError: {str(e)}")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
