@@ -64,7 +64,7 @@ def process_and_store_image(property_id, uploaded_file):
     if img.width > max_width:
         ratio = max_width / float(img.width)
         new_height = int(float(img.height) * float(ratio))
-        img_resized = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
+        img_resized = img.resize((max_width, new_height), Image.Resampling.BILINEAR)
     else:
         img_resized = img
 
@@ -77,7 +77,7 @@ def process_and_store_image(property_id, uploaded_file):
 
     # Create thumbnail using crop to fit 400x300 perfectly
     img_thumb = img.copy()
-    img_thumb.thumbnail(thumb_size, Image.Resampling.LANCZOS)
+    img_thumb.thumbnail(thumb_size, Image.Resampling.BILINEAR)
     # If the aspect ratio doesn't match perfectly, we can pad it or use fit.
     # Let's use Pillow's ImageOps.fit if we want exact 400x300, or just standard thumbnail.
     # Standard thumbnail keeps aspect ratio within 400x300, which is great.

@@ -213,7 +213,7 @@ export async function fetchApi<T = any>(endpoint: string, options: ApiRequestOpt
       throw new Error(errMsg);
     }
 
-    return data as T;
+    return rewriteMediaUrls(data) as T;
   } catch (error: any) {
     // Avoid double-logging SyntaxErrors from bad JSON
     const msg: string = error?.message ?? String(error);
@@ -225,4 +225,33 @@ export async function fetchApi<T = any>(endpoint: string, options: ApiRequestOpt
     }
     throw error;
   }
+}
+
+function rewriteMediaUrls(data: any): any {
+  if (data === null || data === undefined) {
+    return data;
+  }
+  if (typeof data === 'string') {
+    if (data.startsWith('/media/')) {
+      const apiUrl = getApiUrl();
+      if (apiUrl.startsWith('http')) {
+        const backendOrigin = apiUrl.replace(/\/api$/, '');
+        return backendOrigin + data;
+      }
+    }
+    return data;
+  }
+  if (Array.isArray(data)) {
+    return data.map(rewriteMediaUrls);
+  }
+  if (typeof data === 'object') {
+    const copy: any = {};
+    for (const key in data) {
+      if (Object.prototype.hasOwnProperty.call(data, key)) {
+        copy[key] = rewriteMediaUrls(data[key]);
+      }
+    }
+    return copy;
+  }
+  return data;
 }

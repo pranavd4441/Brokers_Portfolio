@@ -36,4 +36,4 @@ ENTRYPOINT ["docker-entrypoint.sh"]
 EXPOSE 8000
 
 # Execute Gunicorn dynamically binding to PORT, replacing the shell process (PID 1)
-CMD ["sh", "-c", "exec gunicorn property_os.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 2"]
+CMD ["sh", "-c", "exec gunicorn property_os.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 2 --timeout 120"]
