@@ -257,7 +257,34 @@ function StickyCtaBar({
 }
 
 // ─── Main Client Component ───────────────────────────────────────
-export default function PublicPropertyClient({ property }: { property: PublicProperty }) {
+export default function PublicPropertyClient({ property: initialProperty }: { property: PublicProperty }) {
+  // Ensure all media/avatar/logo URLs are absolute URLs pointing to the backend
+  const getAbsoluteUrl = (url: string | null | undefined) => {
+    if (!url) return '';
+    if (url.startsWith('/media/')) {
+      const apiUrl = getApiUrl();
+      const backendOrigin = apiUrl.startsWith('http')
+        ? apiUrl.replace(/\/api$/, '')
+        : window.location.origin.replace('-frontend', '-backend');
+      return `${backendOrigin}${url}`;
+    }
+    return url;
+  };
+
+  const property = {
+    ...initialProperty,
+    images: (initialProperty.images ?? []).map(img => ({
+      ...img,
+      url: getAbsoluteUrl(img.url),
+      thumbnail_url: getAbsoluteUrl(img.thumbnail_url),
+    })),
+    brand_logo_url: getAbsoluteUrl(initialProperty.brand_logo_url),
+    broker: {
+      ...initialProperty.broker,
+      avatar_url: getAbsoluteUrl(initialProperty.broker.avatar_url),
+    },
+  };
+
   const brandColor = property.brand_color ?? '#16c784';
   const formatted = formatPrice(property.price);
 
