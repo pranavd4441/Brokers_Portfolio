@@ -42,6 +42,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         import logging
         import traceback
+
         from rest_framework import serializers
 
         try:
