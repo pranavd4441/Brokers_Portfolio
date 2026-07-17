@@ -161,9 +161,40 @@ urlpatterns = [
     path("api/leads/", include("apps.leads.urls")),
 ]
 
-# Serve media files in development mode or when using local fallback storage
-if settings.DEBUG or not (
-    settings.AWS_ACCESS_KEY_ID and settings.AWS_STORAGE_BUCKET_NAME
-):
+# Serve static/media files in development mode
+if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+else:
+    # Serve media files with dynamic placeholders in production when local fallback is used
+    if not (settings.AWS_ACCESS_KEY_ID and settings.AWS_STORAGE_BUCKET_NAME):
+        import io
+
+        from django.http import Http404, HttpResponse
+        from django.urls import re_path
+        from django.views.static import serve
+        from PIL import Image, ImageDraw
+
+        def safe_serve_media(request, path, document_root=None, **kwargs):
+            try:
+                return serve(request, path, document_root=document_root, **kwargs)
+            except Http404:
+                # Dynamically generate a beautiful dark slate placeholder image matching PropertyOS branding
+                img = Image.new("RGB", (800, 600), color=(15, 23, 42))
+                draw = ImageDraw.Draw(img)
+                draw.rectangle([0, 585, 800, 600], fill=(22, 199, 132))
+
+                buffer = io.BytesIO()
+                img.save(buffer, format="WEBP", quality=85)
+
+                response = HttpResponse(buffer.getvalue(), content_type="image/webp")
+                response["Cache-Control"] = "public, max-age=3600"
+                return response
+
+        urlpatterns += [
+            re_path(
+                r"^media/(?P<path>.*)$",
+                safe_serve_media,
+                {"document_root": settings.MEDIA_ROOT},
+            ),
+        ]

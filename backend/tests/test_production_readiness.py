@@ -166,9 +166,16 @@ class TestProductionReadiness:
     def test_media_static_corp_headers(self):
         # Request a media path and assert that Cross-Origin-Resource-Policy is "cross-origin"
         response = self.client.get("/media/nonexistent.jpg")
-        # Django will return 404 (nonexistent) but the middleware still sets security headers
+        # In testing (DEBUG=False), missing media files serve placeholders (status 200) with CORP headers
+        assert response.status_code == 200
         assert response.headers.get("Cross-Origin-Resource-Policy") == "cross-origin"
 
         # Request a standard API path and assert that CORP is "same-origin"
         api_response = self.client.get("/api/health/")
         assert api_response.headers.get("Cross-Origin-Resource-Policy") == "same-origin"
+
+    def test_media_fallback_placeholder(self):
+        # Request a non-existent media path and verify it returns a 200 WebP fallback image
+        response = self.client.get("/media/properties/999/nonexistent.webp")
+        assert response.status_code == 200
+        assert response.headers.get("Content-Type") == "image/webp"
