@@ -76,6 +76,7 @@ def get_frontend_url(request=None):
     - Production (Render): maps property-os-backend to property-os-frontend
     """
     import os
+
     env_site_url = os.getenv("NEXT_PUBLIC_SITE_URL")
     if env_site_url and env_site_url != "http://localhost":
         return env_site_url.rstrip("/")
@@ -90,4 +91,3 @@ def get_frontend_url(request=None):
     if "-backend" in url:
         return url.replace("-backend", "-frontend")
     return url
-

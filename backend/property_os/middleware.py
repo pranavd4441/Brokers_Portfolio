@@ -282,9 +282,11 @@ class SecurityHeadersMiddleware:
         # 3. Cross-Origin Policies
         response["Cross-Origin-Opener-Policy"] = "same-origin"
         response["Cross-Origin-Embedder-Policy"] = "require-corp"
-        
+
         # Allow cross-origin loading of media and static files (e.g. for the frontend)
-        if request and (request.path.startswith("/media/") or request.path.startswith("/static/")):
+        if request and (
+            request.path.startswith("/media/") or request.path.startswith("/static/")
+        ):
             response["Cross-Origin-Resource-Policy"] = "cross-origin"
         else:
             response["Cross-Origin-Resource-Policy"] = "same-origin"

@@ -172,4 +172,3 @@ class TestProductionReadiness:
         # Request a standard API path and assert that CORP is "same-origin"
         api_response = self.client.get("/api/health/")
         assert api_response.headers.get("Cross-Origin-Resource-Policy") == "same-origin"
-

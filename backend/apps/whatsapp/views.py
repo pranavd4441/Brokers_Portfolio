@@ -76,9 +76,9 @@ def send_details_confirmation(session):
         try:
             p = float(price)
             fp = (
-                f"₹{p/10_000_000:.2f} Cr"
+                f"₹{p / 10_000_000:.2f} Cr"
                 if p >= 10_000_000
-                else f"₹{p/100_000:.2f} L"
+                else f"₹{p / 100_000:.2f} L"
                 if p >= 100_000
                 else f"₹{p:,}"
             )
@@ -437,9 +437,9 @@ class WhatsAppWebhookView(APIView):
                         msg = "=== Your Property Inventory ===\n\n"
                         for idx, p in enumerate(properties, 1):
                             price_str = (
-                                f"₹{p.price/10_000_000:.2f} Cr"
+                                f"₹{p.price / 10_000_000:.2f} Cr"
                                 if p.price >= 10_000_000
-                                else f"₹{p.price/100_000:.2f} L"
+                                else f"₹{p.price / 100_000:.2f} L"
                             )
                             msg += f"{idx}. {p.title}\n   Price: {price_str} | Status: {p.status}\n"
                             share_link = p.share_links.first()
@@ -452,7 +452,7 @@ class WhatsAppWebhookView(APIView):
                             {
                                 "id": f"prop_view_{p.id}",
                                 "title": p.title[:24],
-                                "description": f"₹{p.price/100_000:.1f}L | {p.status}",
+                                "description": f"₹{p.price / 100_000:.1f}L | {p.status}",
                             }
                             for p in properties
                         ]
@@ -473,9 +473,9 @@ class WhatsAppWebhookView(APIView):
                         msg = "=== Available Properties ===\n\n"
                         for idx, p in enumerate(properties, 1):
                             price_str = (
-                                f"₹{p.price/10_000_000:.2f} Cr"
+                                f"₹{p.price / 10_000_000:.2f} Cr"
                                 if p.price >= 10_000_000
-                                else f"₹{p.price/100_000:.2f} L"
+                                else f"₹{p.price / 100_000:.2f} L"
                             )
                             msg += f"{idx}. {p.title}\n   Price: {price_str}\n"
                             share_link = p.share_links.first()
@@ -488,7 +488,7 @@ class WhatsAppWebhookView(APIView):
                             {
                                 "id": f"prop_view_{p.id}",
                                 "title": p.title[:24],
-                                "description": f"Price: ₹{p.price/100_000:.1f}L",
+                                "description": f"Price: ₹{p.price / 100_000:.1f}L",
                             }
                             for p in properties
                         ]
@@ -519,16 +519,16 @@ class WhatsAppWebhookView(APIView):
                         msg = f"=== Properties Sold in {timezone.now().strftime('%B')} ===\n\n"
                         for idx, p in enumerate(properties, 1):
                             price_str = (
-                                f"₹{p.price/10_000_000:.2f} Cr"
+                                f"₹{p.price / 10_000_000:.2f} Cr"
                                 if p.price >= 10_000_000
-                                else f"₹{p.price/100_000:.2f} L"
+                                else f"₹{p.price / 100_000:.2f} L"
                             )
                             msg += f"{idx}. {p.title}\n   Price: {price_str} | Closed: {p.updated_at.strftime('%d-%b')}\n\n"
                         list_items = [
                             {
                                 "id": f"prop_view_{p.id}",
                                 "title": p.title[:24],
-                                "description": f"Price: ₹{p.price/100_000:.1f}L",
+                                "description": f"Price: ₹{p.price / 100_000:.1f}L",
                             }
                             for p in properties
                         ]
@@ -543,9 +543,9 @@ class WhatsAppWebhookView(APIView):
                     prop_id = body_lower.replace("prop_view_", "").strip()
                     prop = get_object_or_404(Property, id=prop_id)
                     price_str = (
-                        f"₹{prop.price/10_000_000:.2f} Cr"
+                        f"₹{prop.price / 10_000_000:.2f} Cr"
                         if prop.price >= 10_000_000
-                        else f"₹{prop.price/100_000:.2f} L"
+                        else f"₹{prop.price / 100_000:.2f} L"
                     )
                     msg = (
                         f"🏠 *{prop.title}*\n\n"
@@ -842,9 +842,9 @@ class WhatsAppWebhookView(APIView):
                             )
 
                             formatted_price = (
-                                f"₹{new_price/10_000_000:.2f} Cr"
+                                f"₹{new_price / 10_000_000:.2f} Cr"
                                 if new_price >= 10_000_000
-                                else f"₹{new_price/100_000:.2f} L"
+                                else f"₹{new_price / 100_000:.2f} L"
                             )
                             msg = f"✓ Successfully updated price of '{prop.title}' to {formatted_price}!"
                         elif matching.count() > 1:
@@ -923,9 +923,9 @@ class WhatsAppWebhookView(APIView):
                             },
                         )
                         formatted_price = (
-                            f"₹{parsed_price/10_000_000:.2f} Cr"
+                            f"₹{parsed_price / 10_000_000:.2f} Cr"
                             if parsed_price >= 10_000_000
-                            else f"₹{parsed_price/100_000:.2f} L"
+                            else f"₹{parsed_price / 100_000:.2f} L"
                         )
                         msg = f"✓ Successfully updated price of '{prop.title}' to {formatted_price}!"
                         session.state = "IDLE"

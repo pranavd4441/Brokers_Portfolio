@@ -34,7 +34,6 @@ class ShareLinkSerializer(serializers.ModelSerializer):
         site_url = self._get_site_url()
         return f"{site_url}/p/{obj.slug}"
 
-
     def get_whatsapp_share_text(self, obj):
         # Construct a beautiful pre-formatted marketing pitch for the broker
         prop = obj.property
