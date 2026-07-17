@@ -54,7 +54,7 @@ async function getProperty(slug: string): Promise<PublicProperty | null> {
   // through the Next.js proxy which is only available at request time, not build time).
   const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:8000';
   try {
-    const res = await fetch(`${backendUrl}/api/sharing/resolve/${slug}/`, {
+    const res = await fetch(`${backendUrl}/api/sharing/public/${slug}/`, {
       next: { revalidate: 60 }, // ISR — revalidate every 60s
     });
     if (!res.ok) return null;

@@ -161,7 +161,7 @@ urlpatterns = [
     path("api/leads/", include("apps.leads.urls")),
 ]
 
-# Serve media files in development mode (fallback storage)
-if settings.DEBUG:
+# Serve media files in development mode or when using local fallback storage
+if settings.DEBUG or not (settings.AWS_ACCESS_KEY_ID and settings.AWS_STORAGE_BUCKET_NAME):
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
