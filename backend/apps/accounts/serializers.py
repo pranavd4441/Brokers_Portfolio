@@ -41,80 +41,88 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     def validate(self, attrs):
         import logging
+        import traceback
+        from rest_framework import serializers
 
-        data = super().validate(attrs)
+        try:
+            data = super().validate(attrs)
 
-        # 1. Check if User has Multi-Factor Authentication enabled
-        if self.user.mfa_enabled:
-            from .models import MFATicket
+            # 1. Check if User has Multi-Factor Authentication enabled
+            if self.user.mfa_enabled:
+                from .models import MFATicket
 
-            ticket = MFATicket.objects.create(user=self.user)
-            return {
-                "mfa_required": True,
-                "ticket": str(ticket.id),
-                "mfa_type": self.user.mfa_type,
-            }
+                ticket = MFATicket.objects.create(user=self.user)
+                return {
+                    "mfa_required": True,
+                    "ticket": str(ticket.id),
+                    "mfa_type": self.user.mfa_type,
+                }
 
-        # 2. Record User Session Details
-        refresh_token_str = data.get("refresh")
-        if refresh_token_str:
-            from rest_framework_simplejwt.tokens import RefreshToken
+            # 2. Record User Session Details
+            refresh_token_str = data.get("refresh")
+            if refresh_token_str:
+                from rest_framework_simplejwt.tokens import RefreshToken
 
-            refresh = RefreshToken(refresh_token_str)
-            jti = refresh.get("jti")
+                refresh = RefreshToken(refresh_token_str)
+                jti = refresh.get("jti")
 
-            request = self.context.get("request")
-            if request:
-                from .models import UserSession
-                from .utils import get_client_city, get_client_ip, parse_user_agent
+                request = self.context.get("request")
+                if request:
+                    from .models import UserSession
+                    from .utils import get_client_city, get_client_ip, parse_user_agent
 
-                user_agent = request.META.get("HTTP_USER_AGENT", "")
-                browser, os_name = parse_user_agent(user_agent)
-                ip = get_client_ip(request)
-                city = get_client_city(request)
+                    user_agent = request.META.get("HTTP_USER_AGENT", "")
+                    browser, os_name = parse_user_agent(user_agent)
+                    ip = get_client_ip(request)
+                    city = get_client_city(request)
 
-                # Audit check: detect if this is a new/unusual login location
-                has_past_sessions = UserSession.objects.filter(
-                    user=self.user, is_active=True
-                ).exists()
-                if has_past_sessions:
-                    location_exists = UserSession.objects.filter(
-                        user=self.user, city=city, is_active=True
+                    # Audit check: detect if this is a new/unusual login location
+                    has_past_sessions = UserSession.objects.filter(
+                        user=self.user, is_active=True
                     ).exists()
-                    if not location_exists and city != "Unknown":
-                        security_logger = logging.getLogger("security")
-                        security_logger.warning(
-                            f"Security Alert: New login location detected for {self.user.email} in {city} (IP: {ip})",
-                            extra={
-                                "extra_fields": {
-                                    "user_id": str(self.user.id),
-                                    "city": city,
-                                    "ip": ip,
-                                    "browser": browser,
-                                    "os": os_name,
-                                }
-                            },
-                        )
+                    if has_past_sessions:
+                        location_exists = UserSession.objects.filter(
+                            user=self.user, city=city, is_active=True
+                        ).exists()
+                        if not location_exists and city != "Unknown":
+                            security_logger = logging.getLogger("security")
+                            security_logger.warning(
+                                f"Security Alert: New login location detected for {self.user.email} in {city} (IP: {ip})",
+                                extra={
+                                    "extra_fields": {
+                                        "user_id": str(self.user.id),
+                                        "city": city,
+                                        "ip": ip,
+                                        "browser": browser,
+                                        "os": os_name,
+                                    }
+                                },
+                            )
 
-                UserSession.objects.create(
-                    user=self.user,
-                    token_jti=jti,
-                    ip_address=ip,
-                    user_agent=user_agent[:512],
-                    browser=browser,
-                    os=os_name,
-                    city=city,
-                )
+                    UserSession.objects.create(
+                        user=self.user,
+                        token_jti=jti,
+                        ip_address=ip,
+                        user_agent=user_agent[:512],
+                        browser=browser,
+                        os=os_name,
+                        city=city,
+                    )
 
-        # Also return user details in the response for convenience
-        data["user"] = {
-            "id": str(self.user.id),
-            "name": self.user.name,
-            "email": self.user.email,
-            "role": self.user.role,
-            "tenant_id": str(self.user.tenant_id) if self.user.tenant_id else None,
-        }
-        return data
+            # Also return user details in the response for convenience
+            data["user"] = {
+                "id": str(self.user.id),
+                "name": self.user.name,
+                "email": self.user.email,
+                "role": self.user.role,
+                "tenant_id": str(self.user.tenant_id) if self.user.tenant_id else None,
+            }
+            return data
+        except Exception as e:
+            tb_str = traceback.format_exc()
+            raise serializers.ValidationError(
+                {"detail": f"DEBUG_ERROR: {str(e)}", "traceback": tb_str}
+            )
 
 
 class RegistrationSerializer(serializers.Serializer):
