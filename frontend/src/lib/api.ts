@@ -9,7 +9,7 @@ function getApiUrl() {
       return process.env.NEXT_PUBLIC_API_URL;
     }
     const origin = window.location.origin;
-    if (origin.includes("-frontend") && !origin.includes("onrender.com")) {
+    if (origin.includes("-frontend")) {
       return origin.replace("-frontend", "-backend") + "/api";
     }
     return "/api";
