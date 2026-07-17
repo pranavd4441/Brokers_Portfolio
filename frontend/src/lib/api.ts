@@ -4,8 +4,12 @@
 
 function getApiUrl() {
   if (typeof window !== 'undefined') {
+    // 1. Honor configured public API URL if set in environment variables
+    if (process.env.NEXT_PUBLIC_API_URL) {
+      return process.env.NEXT_PUBLIC_API_URL;
+    }
     const origin = window.location.origin;
-    if (origin.includes("-frontend")) {
+    if (origin.includes("-frontend") && !origin.includes("onrender.com")) {
       return origin.replace("-frontend", "-backend") + "/api";
     }
     return "/api";
