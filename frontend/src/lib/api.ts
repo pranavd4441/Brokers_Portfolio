@@ -2,7 +2,7 @@
 // All browser requests go to /api (relative) which Next.js proxies
 // to the Django backend via the rewrites rule in next.config.ts.
 
-function getApiUrl() {
+export function getApiUrl() {
   if (typeof window !== 'undefined') {
     // 1. Honor configured public API URL if set in environment variables
     if (process.env.NEXT_PUBLIC_API_URL) {

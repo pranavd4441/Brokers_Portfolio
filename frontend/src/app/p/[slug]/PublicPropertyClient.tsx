@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { getApiUrl } from '@/lib/api';
 import { PublicProperty } from './page';
 
 // ─── Helpers ────────────────────────────────────────────────────
@@ -266,7 +267,7 @@ export default function PublicPropertyClient({ property }: { property: PublicPro
 
   // Log view analytics (fire-and-forget)
   useEffect(() => {
-    fetch('/api/analytics/log/', {
+    fetch(`${getApiUrl()}/analytics/log/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ property: property.id, event_type: 'PAGE_VIEW' }),
@@ -298,7 +299,7 @@ export default function PublicPropertyClient({ property }: { property: PublicPro
       window.open(`https://wa.me/${cleanedPhone}?text=${text}`, '_blank');
       
       // Log click with buyer details
-      fetch('/api/analytics/log/', {
+      fetch(`${getApiUrl()}/analytics/log/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -312,7 +313,7 @@ export default function PublicPropertyClient({ property }: { property: PublicPro
       window.location.href = `tel:${property.broker.phone}`;
       
       // Log click with buyer details
-      fetch('/api/analytics/log/', {
+      fetch(`${getApiUrl()}/analytics/log/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
