@@ -1,9 +1,9 @@
-import os
 import urllib.parse
 
 from rest_framework import serializers
 
 from apps.accounts.utils import get_frontend_url
+
 from .models import ShareLink
 
 
