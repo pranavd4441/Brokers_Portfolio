@@ -14,6 +14,7 @@ from .models import AnalyticsEvent
 
 logger = logging.getLogger(__name__)
 
+from apps.accounts.utils import get_frontend_url
 from property_os.feature_flags import FeatureFlagService
 from property_os.throttling import PublicRateThrottle
 
@@ -121,7 +122,7 @@ class PublicEventLogView(generics.CreateAPIView):
                     property=property_obj
                 ).first()
                 slug = share_link.slug if share_link else str(property_obj.id)
-                host = request.build_absolute_uri("/")[:-1].replace(":8000", ":3000")
+                host = get_frontend_url(request)
                 public_url = f"{host}/p/{slug}"
 
                 event_label = (

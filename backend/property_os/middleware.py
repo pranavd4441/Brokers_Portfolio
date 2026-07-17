@@ -250,7 +250,7 @@ class GlobalExceptionMiddleware:
 
         # Ensure security headers are still appended
         security_middleware = SecurityHeadersMiddleware(None)
-        response = security_middleware.add_security_headers(response)
+        response = security_middleware.add_security_headers(response, request)
 
         # Clean logging context
         clear_log_context()
@@ -268,9 +268,9 @@ class SecurityHeadersMiddleware:
 
     def __call__(self, request):
         response = self.get_response(request)
-        return self.add_security_headers(response)
+        return self.add_security_headers(response, request)
 
-    def add_security_headers(self, response):
+    def add_security_headers(self, response, request=None):
         # 1. Referrer Policy
         response["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
@@ -282,7 +282,12 @@ class SecurityHeadersMiddleware:
         # 3. Cross-Origin Policies
         response["Cross-Origin-Opener-Policy"] = "same-origin"
         response["Cross-Origin-Embedder-Policy"] = "require-corp"
-        response["Cross-Origin-Resource-Policy"] = "same-origin"
+        
+        # Allow cross-origin loading of media and static files (e.g. for the frontend)
+        if request and (request.path.startswith("/media/") or request.path.startswith("/static/")):
+            response["Cross-Origin-Resource-Policy"] = "cross-origin"
+        else:
+            response["Cross-Origin-Resource-Policy"] = "same-origin"
 
         # 4. Content Security Policy (CSP)
         # Detailed Directive Explanations:

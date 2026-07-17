@@ -34,6 +34,7 @@ from .services import (
 
 logger = logging.getLogger(__name__)
 
+from apps.accounts.utils import get_frontend_url
 from property_os.feature_flags import FeatureFlagService
 from property_os.throttling import WebhookRateThrottle
 
@@ -355,7 +356,7 @@ class WhatsAppWebhookView(APIView):
         # 4. Handle Unregistered Contacts
         if not user:
             logger.warning(f"Unregistered WhatsApp contact: {phone_number}")
-            host = request.build_absolute_uri("/")[:-1].replace(":8000", ":3000")
+            host = get_frontend_url(request)
             msg = (
                 f"Hi! Your phone number ({phone_number}) is not registered under any PropertyOS workspace. "
                 f"Please sign up at {host}/auth/signup and add your phone number to your profile."
@@ -443,9 +444,7 @@ class WhatsAppWebhookView(APIView):
                             msg += f"{idx}. {p.title}\n   Price: {price_str} | Status: {p.status}\n"
                             share_link = p.share_links.first()
                             if share_link:
-                                host = request.build_absolute_uri("/")[:-1].replace(
-                                    ":8000", ":3000"
-                                )
+                                host = get_frontend_url(request)
                                 msg += f"   Link: {host}/p/{share_link.slug}\n"
                             msg += "\n"
                         msg += "Select a property below to manage:"
@@ -481,9 +480,7 @@ class WhatsAppWebhookView(APIView):
                             msg += f"{idx}. {p.title}\n   Price: {price_str}\n"
                             share_link = p.share_links.first()
                             if share_link:
-                                host = request.build_absolute_uri("/")[:-1].replace(
-                                    ":8000", ":3000"
-                                )
+                                host = get_frontend_url(request)
                                 msg += f"   Link: {host}/p/{share_link.slug}\n"
                             msg += "\n"
                         msg += "Select a property below:"
@@ -570,9 +567,7 @@ class WhatsAppWebhookView(APIView):
                     share_link, _ = ShareLink.objects.get_or_create(
                         property=prop, tenant=user.tenant, defaults={"created_by": user}
                     )
-                    host = request.build_absolute_uri("/")[:-1].replace(
-                        ":8000", ":3000"
-                    )
+                    host = get_frontend_url(request)
                     public_url = f"{host}/p/{share_link.slug}"
                     msg = f"🔗 *Share Link for {prop.title}:*\n\n👉 {public_url}"
                     buttons = [{"id": "btn_main_menu", "title": "Main Menu"}]
@@ -1040,9 +1035,7 @@ class WhatsAppWebhookView(APIView):
                             if price >= 100_000
                             else f"₹{price:,.2f}"
                         )
-                        host = request.build_absolute_uri("/")[:-1].replace(
-                            ":8000", ":3000"
-                        )
+                        host = get_frontend_url(request)
                         public_url = f"{host}/p/{share_link.slug}"
 
                         msg = (
@@ -1417,9 +1410,7 @@ class WhatsAppWebhookView(APIView):
                                 if price >= 100_000
                                 else f"₹{price:,.2f}"
                             )
-                            host = request.build_absolute_uri("/")[:-1].replace(
-                                ":8000", ":3000"
-                            )
+                            host = get_frontend_url(request)
                             public_url = f"{host}/p/{share_link.slug}"
 
                             msg = (

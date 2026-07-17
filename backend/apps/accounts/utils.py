@@ -67,3 +67,27 @@ def get_client_city(request):
             "HTTP_X_RENDER_GEO_CITY"
         )
     return city or "Unknown"
+
+
+def get_frontend_url(request=None):
+    """
+    Resolves the frontend landing page URL.
+    - Local: maps localhost:8000 to localhost:3000
+    - Production (Render): maps property-os-backend to property-os-frontend
+    """
+    import os
+    env_site_url = os.getenv("NEXT_PUBLIC_SITE_URL")
+    if env_site_url and env_site_url != "http://localhost":
+        return env_site_url.rstrip("/")
+
+    if request:
+        url = request.build_absolute_uri("/")[:-1]
+    else:
+        url = os.getenv("NEXT_PUBLIC_SITE_URL", "http://localhost").rstrip("/")
+
+    if "localhost" in url or "127.0.0.1" in url:
+        return url.replace(":8000", ":3000")
+    if "-backend" in url:
+        return url.replace("-backend", "-frontend")
+    return url
+

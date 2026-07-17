@@ -162,3 +162,14 @@ class TestProductionReadiness:
         ):
             with pytest.raises(ImproperlyConfigured):
                 validate_environment()
+
+    def test_media_static_corp_headers(self):
+        # Request a media path and assert that Cross-Origin-Resource-Policy is "cross-origin"
+        response = self.client.get("/media/nonexistent.jpg")
+        # Django will return 404 (nonexistent) but the middleware still sets security headers
+        assert response.headers.get("Cross-Origin-Resource-Policy") == "cross-origin"
+
+        # Request a standard API path and assert that CORP is "same-origin"
+        api_response = self.client.get("/api/health/")
+        assert api_response.headers.get("Cross-Origin-Resource-Policy") == "same-origin"
+
