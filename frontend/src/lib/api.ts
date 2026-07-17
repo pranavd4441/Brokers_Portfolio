@@ -3,14 +3,19 @@
 // to the Django backend via the rewrites rule in next.config.ts.
 
 function getApiUrl() {
-  // In the browser: always use a relative /api path so the
-  // Next.js dev-server proxy (next.config.ts rewrites) forwards
-  // the request to Django. Using window.location.origin + '/api'
-  // was correct too, but an explicit relative URL is cleaner.
   if (typeof window !== 'undefined') {
-    return '/api';
+    const origin = window.location.origin;
+    if (origin.includes("-frontend")) {
+      return origin.replace("-frontend", "-backend") + "/api";
+    }
+    return "/api";
   }
-  // On the server (SSR/ISR): hit Django directly.
+  
+  // On the server side (SSR/ISR)
+  const backendUrl = process.env.BACKEND_URL;
+  if (backendUrl) {
+    return backendUrl.endsWith('/') ? `${backendUrl}api` : `${backendUrl}/api`;
+  }
   return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 }
 
@@ -208,7 +213,7 @@ export async function fetchApi<T = any>(endpoint: string, options: ApiRequestOpt
       throw new Error(errMsg);
     }
 
-    return data as T;
+    return rewriteMediaUrls(data) as T;
   } catch (error: any) {
     // Avoid double-logging SyntaxErrors from bad JSON
     const msg: string = error?.message ?? String(error);
@@ -220,4 +225,33 @@ export async function fetchApi<T = any>(endpoint: string, options: ApiRequestOpt
     }
     throw error;
   }
+}
+
+function rewriteMediaUrls(data: any): any {
+  if (data === null || data === undefined) {
+    return data;
+  }
+  if (typeof data === 'string') {
+    if (data.startsWith('/media/')) {
+      const apiUrl = getApiUrl();
+      if (apiUrl.startsWith('http')) {
+        const backendOrigin = apiUrl.replace(/\/api$/, '');
+        return backendOrigin + data;
+      }
+    }
+    return data;
+  }
+  if (Array.isArray(data)) {
+    return data.map(rewriteMediaUrls);
+  }
+  if (typeof data === 'object') {
+    const copy: any = {};
+    for (const key in data) {
+      if (Object.prototype.hasOwnProperty.call(data, key)) {
+        copy[key] = rewriteMediaUrls(data[key]);
+      }
+    }
+    return copy;
+  }
+  return data;
 }
