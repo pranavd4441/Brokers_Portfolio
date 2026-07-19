@@ -1076,19 +1076,19 @@ class Command(BaseCommand):
 
             for _ in range(to_create):
                 raw_ip = (
-                    f"10.{random.randint(0, 255)}.{random.randint(0, 255)}"
-                    f".{random.randint(1, 254)}"
+                    f"10.{random.randint(0, 255)}.{random.randint(0, 255)}"  # nosec B311
+                    f".{random.randint(1, 254)}"  # nosec B311
                 )
                 ip_hash = hashlib.sha256(raw_ip.encode()).hexdigest()
 
                 events_to_create.append(
                     AnalyticsEvent(
                         property=prop,
-                        event_type=random.choice(event_types),
-                        device_type=random.choice(device_types),
-                        browser=random.choice(browsers),
+                        event_type=random.choice(event_types),  # nosec B311
+                        device_type=random.choice(device_types),  # nosec B311
+                        browser=random.choice(browsers),  # nosec B311
                         ip_hash=ip_hash,
-                        location_city=random.choice(cities),
+                        location_city=random.choice(cities),  # nosec B311
                     )
                 )
 
