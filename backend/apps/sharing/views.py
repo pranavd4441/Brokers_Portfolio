@@ -96,8 +96,10 @@ class PublicPropertyResolverView(generics.RetrieveAPIView):
                 )
 
         # 4. Serialize property
-        property_serializer = PropertySerializer(property_obj)
-        tenant_serializer = TenantSerializer(tenant_obj)
+        property_serializer = PropertySerializer(
+            property_obj, context={"request": request}
+        )
+        tenant_serializer = TenantSerializer(tenant_obj, context={"request": request})
 
         prop_data = property_serializer.data
         brand_data = tenant_serializer.data

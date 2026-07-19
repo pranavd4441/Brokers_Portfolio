@@ -36,6 +36,7 @@ interface PropertyCardProps {
   onDelete: () => void;
   isSelected?: boolean;
   onSelectToggle?: () => void;
+  isDuplicating?: boolean;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; cssClass: string }> = {
@@ -61,6 +62,7 @@ export default function PropertyCard({
   onDelete,
   isSelected = false,
   onSelectToggle,
+  isDuplicating = false,
 }: PropertyCardProps) {
   const [imageError, setImageError] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -152,10 +154,18 @@ export default function PropertyCard({
                 <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
                 <div className="absolute top-full right-0 mt-1.5 z-20 w-40 os-frosted rounded-xl overflow-hidden shadow-2xl py-1 os-slide-up">
                   <button
-                    onClick={() => { setMenuOpen(false); onDuplicate(); }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-[#8892aa] hover:text-[#f0f4ff] hover:bg-[rgba(255,255,255,0.04)] transition-colors text-left"
+                    onClick={() => {
+                      if (!isDuplicating) {
+                        setMenuOpen(false);
+                        onDuplicate();
+                      }
+                    }}
+                    disabled={isDuplicating}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs text-[#8892aa] hover:text-[#f0f4ff] hover:bg-[rgba(255,255,255,0.04)] transition-colors text-left ${
+                      isDuplicating ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
                   >
-                    <span>⊕</span> Duplicate
+                    <span>⊕</span> {isDuplicating ? 'Duplicating...' : 'Duplicate'}
                   </button>
                   <Link
                     href={`/dashboard/properties/${property.id}/edit`}
@@ -199,10 +209,13 @@ export default function PropertyCard({
         {/* Type label */}
         <div className="os-label mb-1.5">{typeLabel}</div>
 
-        {/* Title */}
-        <h3 className="text-sm font-semibold text-[#f0f4ff] leading-snug line-clamp-1">
+        {/* Title — links to detail page */}
+        <Link
+          href={`/dashboard/properties/${property.id}`}
+          className="text-sm font-semibold text-[#f0f4ff] leading-snug line-clamp-1 hover:text-[#16c784] transition-colors"
+        >
           {property.title}
-        </h3>
+        </Link>
 
         {/* Location */}
         <div className="flex items-center gap-1 mt-1.5">

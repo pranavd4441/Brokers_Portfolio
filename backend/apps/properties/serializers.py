@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework import serializers
 
 from apps.media.models import PropertyImage
@@ -6,10 +7,33 @@ from .models import Property
 
 
 class PropertyImageSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+    thumbnail_url = serializers.SerializerMethodField()
+
     class Meta:
         model = PropertyImage
         fields = ["id", "url", "thumbnail_url", "display_order", "created_at"]
         read_only_fields = ["id", "created_at"]
+
+    def _get_absolute_url(self, path):
+        if not path:
+            return ""
+        if path.startswith("http://") or path.startswith("https://"):
+            return path
+        request = self.context.get("request")
+        if request:
+            return request.build_absolute_uri(path)
+        # Fallback if request is not in context
+        site_url = getattr(settings, "SITE_URL", "http://localhost:8000")
+        if not site_url.endswith("/") and not path.startswith("/"):
+            return f"{site_url}/{path}"
+        return f"{site_url}{path}"
+
+    def get_url(self, obj):
+        return self._get_absolute_url(obj.url)
+
+    def get_thumbnail_url(self, obj):
+        return self._get_absolute_url(obj.thumbnail_url)
 
 
 class PropertySerializer(serializers.ModelSerializer):

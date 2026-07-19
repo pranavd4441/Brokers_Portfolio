@@ -745,7 +745,12 @@ export default function DashboardPage() {
                   property={property}
                   isGeneratingShare={generatingShareId === property.id}
                   onShare={() => handleShare(property)}
-                  onDuplicate={() => duplicateMutation.mutate(property.id)}
+                  isDuplicating={duplicateMutation.isPending && duplicateMutation.variables === property.id}
+                  onDuplicate={() => {
+                    if (!duplicateMutation.isPending) {
+                      duplicateMutation.mutate(property.id);
+                    }
+                  }}
                   onDelete={() => {
                     if (confirm(`Delete "${property.title}"? This cannot be undone.`)) {
                       deleteMutation.mutate(property.id);

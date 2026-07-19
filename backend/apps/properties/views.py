@@ -85,6 +85,25 @@ class PropertyViewSet(viewsets.ModelViewSet):
         """
         original_property = self.get_object()
 
+        # Idempotency guard: prevent duplicate clones within a short time window (10 seconds)
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        recent_clone = Property.objects_unfiltered.filter(
+            title=f"Copy of {original_property.title}",
+            created_by=request.user,
+            created_at__gte=timezone.now() - timedelta(seconds=10),
+        ).exists()
+
+        if recent_clone:
+            return Response(
+                {
+                    "detail": "A duplicate of this property was recently created. Please wait a few seconds before trying again."
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
         with transaction.atomic():
             # Clone the property instance
             cloned_property = Property.objects.create(
@@ -221,7 +240,9 @@ class PropertyViewSet(viewsets.ModelViewSet):
         # Return the newly created images
         from .serializers import PropertyImageSerializer
 
-        serializer = PropertyImageSerializer(created_images, many=True)
+        serializer = PropertyImageSerializer(
+            created_images, many=True, context={"request": request}
+        )
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @decorators.action(
