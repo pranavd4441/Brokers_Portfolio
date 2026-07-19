@@ -236,12 +236,15 @@ function rewriteMediaUrls(data: any): any {
     return data;
   }
   if (typeof data === 'string') {
-    if (data.startsWith('/media/')) {
+    const mediaIndex = data.indexOf('/media/');
+    if (mediaIndex !== -1) {
+      const mediaPath = data.substring(mediaIndex);
       const apiUrl = getApiUrl();
       if (apiUrl.startsWith('http')) {
         const backendOrigin = apiUrl.replace(/\/api$/, '');
-        return backendOrigin + data;
+        return backendOrigin + mediaPath;
       }
+      return mediaPath;
     }
     return data;
   }

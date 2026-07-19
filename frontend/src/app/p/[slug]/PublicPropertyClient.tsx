@@ -261,12 +261,14 @@ export default function PublicPropertyClient({ property: initialProperty }: { pr
   // Ensure all media/avatar/logo URLs are absolute URLs pointing to the backend
   const getAbsoluteUrl = (url: string | null | undefined) => {
     if (!url) return '';
-    if (url.startsWith('/media/')) {
+    const mediaIndex = url.indexOf('/media/');
+    if (mediaIndex !== -1) {
+      const mediaPath = url.substring(mediaIndex);
       const apiUrl = getApiUrl();
       const backendOrigin = apiUrl.startsWith('http')
         ? apiUrl.replace(/\/api$/, '')
         : window.location.origin.replace('-frontend', '-backend');
-      return `${backendOrigin}${url}`;
+      return `${backendOrigin}${mediaPath}`;
     }
     return url;
   };

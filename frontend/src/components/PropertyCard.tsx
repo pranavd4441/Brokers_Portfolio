@@ -85,7 +85,7 @@ export default function PropertyCard({
     }
   };
 
-  const primaryImage = !imageError && property.images.length > 0
+  const primaryImage = !imageError && property.images && property.images.length > 0
     ? property.images[0].thumbnail_url
     : null;
 
@@ -109,7 +109,9 @@ export default function PropertyCard({
             src={primaryImage}
             alt={property.title}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            onError={() => setImageError(true)}
+            onError={() => {
+              setImageError(true);
+            }}
           />
         ) : (
           /* Photo placeholder */
