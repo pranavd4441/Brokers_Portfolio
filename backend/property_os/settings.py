@@ -287,6 +287,8 @@ AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
 AWS_S3_ENDPOINT_URL = os.getenv("AWS_S3_ENDPOINT_URL")
+AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME")
+AWS_QUERYSTRING_AUTH = os.getenv("AWS_QUERYSTRING_AUTH", "True") == "True"
 
 if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY and AWS_STORAGE_BUCKET_NAME:
     # Use django-storages S3Backend
@@ -297,6 +299,7 @@ if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY and AWS_STORAGE_BUCKET_NAME:
     # Cloudflare R2 specific endpoint adjustment
     if AWS_S3_ENDPOINT_URL:
         AWS_S3_CUSTOM_DOMAIN = None
+        AWS_S3_ADDRESSING_STYLE = "path"
     print("[PropertyOS] Object Storage Configured: Using S3/R2 Backend.")
 else:
     # Fallback to Local Directory Storage
