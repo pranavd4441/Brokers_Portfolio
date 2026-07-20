@@ -1,5 +1,3 @@
-import urllib.parse
-
 from rest_framework import serializers
 
 from apps.accounts.utils import get_frontend_url
@@ -62,5 +60,4 @@ class ShareLinkSerializer(serializers.ModelSerializer):
             f"Interested? Let's chat! 💬"
         )
 
-        # Return URL-encoded string so it can be passed directly to WhatsApp's API on the client
-        return urllib.parse.quote(message)
+        return message
