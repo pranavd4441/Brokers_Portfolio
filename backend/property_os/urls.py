@@ -223,8 +223,8 @@ if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 else:
-    # Serve media files with dynamic placeholders in production when local fallback is used
-    if not (settings.AWS_ACCESS_KEY_ID and settings.AWS_STORAGE_BUCKET_NAME):
+    # Serve media files with dynamic placeholders in production (as a fallback for missing or local files)
+    if True:
         import io
 
         from django.http import Http404, HttpResponse

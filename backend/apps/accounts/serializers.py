@@ -43,7 +43,17 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         import logging
         import traceback
 
+        from django.contrib.auth import get_user_model
         from rest_framework import serializers
+        from rest_framework.exceptions import AuthenticationFailed
+
+        email = attrs.get(self.username_field)
+        User = get_user_model()
+
+        if email and not User.objects.filter(email__iexact=email).exists():
+            raise serializers.ValidationError(
+                {"detail": "your accoount is noyt register you should register first."}
+            )
 
         try:
             data = super().validate(attrs)
@@ -119,6 +129,12 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 "tenant_id": str(self.user.tenant_id) if self.user.tenant_id else None,
             }
             return data
+        except serializers.ValidationError:
+            raise
+        except AuthenticationFailed as e:
+            raise serializers.ValidationError(
+                {"detail": "Invalid credentials. Please try again."}
+            )
         except Exception as e:
             tb_str = traceback.format_exc()
             raise serializers.ValidationError(

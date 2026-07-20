@@ -261,6 +261,10 @@ export default function PublicPropertyClient({ property: initialProperty }: { pr
   // Ensure all media/avatar/logo URLs are absolute URLs pointing to the backend
   const getAbsoluteUrl = (url: string | null | undefined) => {
     if (!url) return '';
+    // Translate legacy Supabase S3 endpoints to public CDN paths on-the-fly
+    if (url.includes('storage.supabase.co/storage/v1/s3/')) {
+      url = url.replace('storage.supabase.co/storage/v1/s3', 'supabase.co/storage/v1/object/public');
+    }
     const mediaIndex = url.indexOf('/media/');
     if (mediaIndex !== -1) {
       const mediaPath = url.substring(mediaIndex);

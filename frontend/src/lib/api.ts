@@ -236,6 +236,10 @@ function rewriteMediaUrls(data: any): any {
     return data;
   }
   if (typeof data === 'string') {
+    // Translate legacy Supabase S3 endpoints to public CDN paths on-the-fly
+    if (data.includes('storage.supabase.co/storage/v1/s3/')) {
+      data = data.replace('storage.supabase.co/storage/v1/s3', 'supabase.co/storage/v1/object/public');
+    }
     const mediaIndex = data.indexOf('/media/');
     if (mediaIndex !== -1) {
       const mediaPath = data.substring(mediaIndex);

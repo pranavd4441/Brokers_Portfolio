@@ -13,6 +13,12 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const isNotRegistered = error ? (
+    error.toLowerCase().includes('register') || 
+    error.toLowerCase().includes('not register') || 
+    error.toLowerCase().includes('accoount')
+  ) : false;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -85,9 +91,20 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <div className="flex items-center gap-2 p-3 rounded-xl bg-[rgba(244,63,94,0.08)] border border-[rgba(244,63,94,0.15)]">
-                <span className="text-sm">⚠️</span>
-                <p className="text-xs text-[#f43f5e]">{error}</p>
+              <div className="flex flex-col gap-3 p-4 rounded-xl bg-[rgba(244,63,94,0.08)] border border-[rgba(244,63,94,0.18)]">
+                <div className="flex items-start gap-2.5">
+                  <span className="text-sm mt-0.5">⚠️</span>
+                  <p className="text-xs text-[#f43f5e] font-medium leading-relaxed">{error}</p>
+                </div>
+                {isNotRegistered && (
+                  <Link
+                    id="highlighted-signup-btn"
+                    href="/auth/signup"
+                    className="os-btn-primary h-9 px-4 text-xs font-bold w-full text-center flex items-center justify-center gap-1.5 transition-all duration-300 animate-pulse border border-[#16c784]/20 shadow-lg shadow-[#16c784]/15"
+                  >
+                    <span>Create a New Account</span>
+                  </Link>
+                )}
               </div>
             )}
 
@@ -108,9 +125,17 @@ export default function LoginPage() {
         </div>
 
         {/* Sign up link */}
-        <p className="text-center text-xs text-[#4a5470] mt-5">
+        <p className={`text-center text-xs text-[#4a5470] mt-5 transition-all duration-300 ${isNotRegistered ? 'scale-105 font-semibold' : ''}`}>
           New to PropertyOS?{' '}
-          <Link href="/auth/signup" className="text-[#16c784] hover:underline font-medium">
+          <Link
+            id="register-link"
+            href="/auth/signup"
+            className={`text-[#16c784] hover:underline font-medium transition-all duration-300 ${
+              isNotRegistered
+                ? 'underline scale-110 inline-block px-2.5 py-1 rounded-lg bg-[#16c784]/10 border border-[#16c784]/25 animate-pulse'
+                : ''
+            }`}
+          >
             Create free account →
           </Link>
         </p>
