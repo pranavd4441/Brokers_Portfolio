@@ -289,6 +289,7 @@ AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
 AWS_S3_ENDPOINT_URL = os.getenv("AWS_S3_ENDPOINT_URL")
 AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME")
 AWS_QUERYSTRING_AUTH = os.getenv("AWS_QUERYSTRING_AUTH", "True") == "True"
+AWS_S3_CUSTOM_DOMAIN = os.getenv("AWS_S3_CUSTOM_DOMAIN")
 
 if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY and AWS_STORAGE_BUCKET_NAME:
     # Use django-storages S3Backend
@@ -303,9 +304,8 @@ if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY and AWS_STORAGE_BUCKET_NAME:
     AWS_S3_SIGNATURE_VERSION = "s3v4"
     AWS_S3_FILE_OVERWRITE = False
     AWS_DEFAULT_ACL = None
-    # Cloudflare R2 specific endpoint adjustment
+    # Cloudflare R2/Supabase specific endpoint adjustment
     if AWS_S3_ENDPOINT_URL:
-        AWS_S3_CUSTOM_DOMAIN = None
         AWS_S3_ADDRESSING_STYLE = "path"
     print("[PropertyOS] Object Storage Configured: Using S3/R2 Backend.")
 else:

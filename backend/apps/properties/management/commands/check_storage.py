@@ -39,6 +39,7 @@ class Command(BaseCommand):
         check_env("AWS_S3_ENDPOINT_URL")
         check_env("AWS_S3_REGION_NAME")
         check_env("AWS_QUERYSTRING_AUTH")
+        check_env("AWS_S3_CUSTOM_DOMAIN")
 
         # 3. Test saving a file
         self.stdout.write("\n=== TEST FILE SAVE ===")

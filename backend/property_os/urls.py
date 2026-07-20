@@ -156,6 +156,7 @@ class CheckStorageView(APIView):
             "AWS_S3_ENDPOINT_URL": check_env("AWS_S3_ENDPOINT_URL"),
             "AWS_S3_REGION_NAME": check_env("AWS_S3_REGION_NAME"),
             "AWS_QUERYSTRING_AUTH": check_env("AWS_QUERYSTRING_AUTH"),
+            "AWS_S3_CUSTOM_DOMAIN": check_env("AWS_S3_CUSTOM_DOMAIN"),
         }
 
         test_result = {}
