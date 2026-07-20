@@ -138,11 +138,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function PublicPropertyPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const property = await getProperty(slug);
-  if (!property) notFound();
 
-  if (property.slug !== slug) {
+  if (property && property.slug !== slug) {
     redirect(`/p/${property.slug}`);
   }
 
-  return <PublicPropertyClient property={property} />;
+  return <PublicPropertyClient property={property} slug={slug} />;
 }

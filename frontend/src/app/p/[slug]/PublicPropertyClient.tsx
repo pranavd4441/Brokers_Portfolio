@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { getApiUrl } from '@/lib/api';
+import { getApiUrl, fetchApi } from '@/lib/api';
 import { PublicProperty } from './page';
 
 // ─── Helpers ────────────────────────────────────────────────────
@@ -257,7 +257,79 @@ function StickyCtaBar({
 }
 
 // ─── Main Client Component ───────────────────────────────────────
-export default function PublicPropertyClient({ property: initialProperty }: { property: PublicProperty }) {
+export default function PublicPropertyClient({
+  property: initialProperty,
+  slug,
+}: {
+  property: PublicProperty | null;
+  slug: string;
+}) {
+  const [propertyData, setPropertyData] = useState<PublicProperty | null>(initialProperty);
+  const [loading, setLoading] = useState(!initialProperty);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (propertyData) return;
+
+    let active = true;
+    const loadProperty = async () => {
+      try {
+        setLoading(true);
+        const data = await fetchApi(`/sharing/public/${slug}/`);
+        
+        const prop = data.property ?? data;
+        const branding = data.branding ?? {};
+        
+        const flattened: PublicProperty = {
+          id: prop.id,
+          slug: prop.slug ?? slug,
+          title: prop.title,
+          description: prop.description,
+          price: prop.price,
+          property_type: prop.property_type,
+          status: prop.status,
+          city: prop.city,
+          area: prop.area,
+          address: prop.location_address,
+          bhk: prop.bhk,
+          square_feet: prop.square_feet,
+          amenities: prop.amenities ?? [],
+          images: prop.images ?? [],
+          views: prop.views ?? 0,
+          brand_color: branding.brand_color ?? '#16c784',
+          brand_logo_url: branding.logo_url ?? null,
+          agency_name: branding.name ?? null,
+          broker: {
+            name: branding.broker_name ?? branding.name ?? 'Broker',
+            phone: branding.phone ?? branding.broker_phone ?? '',
+            whatsapp: branding.whatsapp ?? branding.broker_whatsapp ?? branding.phone ?? '',
+            avatar_url: branding.avatar_url ?? null,
+            agency_name: branding.name ?? null,
+            verified: branding.verified ?? false,
+          },
+        };
+
+        if (active) {
+          setPropertyData(flattened);
+          setError(null);
+        }
+      } catch (err: any) {
+        if (active) {
+          setError(err.message || 'This listing link is invalid or has been removed.');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadProperty();
+    return () => {
+      active = false;
+    };
+  }, [slug, propertyData]);
+
   // Ensure all media/avatar/logo URLs are absolute URLs pointing to the backend
   const getAbsoluteUrl = (url: string | null | undefined) => {
     if (!url) return '';
@@ -277,17 +349,46 @@ export default function PublicPropertyClient({ property: initialProperty }: { pr
     return url;
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#07090f] flex flex-col items-center justify-center gap-4 text-[#f0f4ff]">
+        <div className="w-12 h-12 border-4 border-[#16c784]/20 border-t-[#16c784] rounded-full animate-spin" />
+        <p className="text-sm font-semibold tracking-wide text-slate-400">Loading premium listing...</p>
+      </div>
+    );
+  }
+
+  if (error || !propertyData) {
+    return (
+      <div className="min-h-screen bg-[#07090f] flex flex-col items-center justify-center px-6 text-center text-[#f0f4ff]">
+        <div className="w-20 h-20 rounded-3xl bg-[#111622] border border-[rgba(255,255,255,0.06)] flex items-center justify-center text-4xl mb-6 select-none">
+          🏚️
+        </div>
+        <h1 className="text-xl font-bold tracking-tight text-white mb-2">Listing Not Found</h1>
+        <p className="text-sm text-slate-400 max-w-sm mb-8 leading-relaxed">
+          {error || 'This listing link is invalid or has been removed.'}
+        </p>
+        <a
+          href="/"
+          className="os-btn-primary text-sm px-6 py-2.5 rounded-xl font-semibold bg-[#16c784] text-[#07090f] hover:bg-[#12a36c] transition-all"
+        >
+          Go to Homepage
+        </a>
+      </div>
+    );
+  }
+
   const property = {
-    ...initialProperty,
-    images: (initialProperty.images ?? []).map(img => ({
+    ...propertyData,
+    images: (propertyData.images ?? []).map(img => ({
       ...img,
       url: getAbsoluteUrl(img.url),
       thumbnail_url: getAbsoluteUrl(img.thumbnail_url),
     })),
-    brand_logo_url: getAbsoluteUrl(initialProperty.brand_logo_url),
+    brand_logo_url: getAbsoluteUrl(propertyData.brand_logo_url),
     broker: {
-      ...initialProperty.broker,
-      avatar_url: getAbsoluteUrl(initialProperty.broker.avatar_url),
+      ...propertyData.broker,
+      avatar_url: getAbsoluteUrl(propertyData.broker.avatar_url),
     },
   };
 
