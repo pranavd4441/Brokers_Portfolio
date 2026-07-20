@@ -1,24 +1,28 @@
 import os
 import uuid
-from django.core.management.base import BaseCommand
+
 from django.conf import settings
-from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
+from django.core.management.base import BaseCommand
+
 
 class Command(BaseCommand):
     help = "Diagnoses Django storage backend settings and tests file upload"
 
     def handle(self, *args, **options):
         self.stdout.write("=== STORAGE DIAGNOSTIC ===")
-        
+
         # 1. Print current configured storage backend class name
         storage_class = default_storage.__class__.__name__
         self.stdout.write(f"Default File Storage Class: {storage_class}")
-        
+
         # 2. Check settings variables
         self.stdout.write("\n=== SETTINGS VARIABLES ===")
-        self.stdout.write(f"STORAGES settings: {getattr(settings, 'STORAGES', 'Not Defined')}")
-        
+        self.stdout.write(
+            f"STORAGES settings: {getattr(settings, 'STORAGES', 'Not Defined')}"
+        )
+
         # Helper to check environment variable
         def check_env(name):
             val = os.getenv(name)
@@ -42,13 +46,15 @@ class Command(BaseCommand):
         try:
             path = default_storage.save(file_name, ContentFile(b"DIAGNOSTIC_TEST"))
             self.stdout.write(f"Successfully saved file: {path}")
-            
+
             # Get URL
             url = default_storage.url(path)
             self.stdout.write(f"Generated URL: {url}")
-            
+
             # Delete file
             default_storage.delete(path)
             self.stdout.write("Successfully cleaned up/deleted file.")
         except Exception as e:
-            self.stdout.write(self.style.ERROR(f"Failed during file save/cleanup: {str(e)}"))
+            self.stdout.write(
+                self.style.ERROR(f"Failed during file save/cleanup: {str(e)}")
+            )
