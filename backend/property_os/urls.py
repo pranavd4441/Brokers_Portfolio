@@ -120,12 +120,12 @@ class HealthCheckView(APIView):
             or health_data["details"]["storage"].startswith("down")
         ):
             health_data["status"] = "unhealthy"
-            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
             import logging
 
             logging.getLogger("django.request").error(
                 f"[PropertyOS] Health check failed! Details: {health_data['details']}"
             )
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         else:
             status_code = status.HTTP_200_OK
 
@@ -133,10 +133,65 @@ class HealthCheckView(APIView):
         return Response(health_data, status=status_code)
 
 
+class CheckStorageView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        token = request.GET.get("token")
+        if token != "diagnose123":
+            return Response({"error": "Unauthorized access"}, status=403)
+
+        storage_class = default_storage.__class__.__name__
+
+        def check_env(name):
+            val = os.getenv(name)
+            if val:
+                return f"SET ({val[:4]}...{val[-4:] if len(val) > 8 else '...'})"
+            return "NOT SET"
+
+        env_vars = {
+            "AWS_ACCESS_KEY_ID": check_env("AWS_ACCESS_KEY_ID"),
+            "AWS_SECRET_ACCESS_KEY": check_env("AWS_SECRET_ACCESS_KEY"),
+            "AWS_STORAGE_BUCKET_NAME": check_env("AWS_STORAGE_BUCKET_NAME"),
+            "AWS_S3_ENDPOINT_URL": check_env("AWS_S3_ENDPOINT_URL"),
+            "AWS_S3_REGION_NAME": check_env("AWS_S3_REGION_NAME"),
+            "AWS_QUERYSTRING_AUTH": check_env("AWS_QUERYSTRING_AUTH"),
+        }
+
+        test_result = {}
+        file_name = f"web_diagnostic_{uuid.uuid4().hex[:8]}.txt"
+        try:
+            path = default_storage.save(file_name, ContentFile(b"DIAGNOSTIC_TEST"))
+            exists = default_storage.exists(path)
+            url = default_storage.url(path)
+            default_storage.delete(path)
+            test_result = {
+                "status": "success",
+                "saved_path": path,
+                "exists_verified": exists,
+                "generated_url": url,
+            }
+        except Exception as e:
+            test_result = {
+                "status": "failed",
+                "error": str(e),
+            }
+
+        return Response(
+            {
+                "default_storage_class": storage_class,
+                "storages_setting": getattr(settings, "STORAGES", "Not Defined"),
+                "environment_variables": env_vars,
+                "test_file_save": test_result,
+            }
+        )
+
+
 from apps.audit.views import PrometheusMetricsView
 
 v1_urlpatterns = [
     path("health/", HealthCheckView.as_view(), name="health_check_v1"),
+    path("check-storage/", CheckStorageView.as_view(), name="check_storage_v1"),
     path("metrics/", PrometheusMetricsView.as_view(), name="prometheus_metrics_v1"),
     path("auth/", include("apps.accounts.urls")),
     path("properties/", include("apps.properties.urls")),
@@ -152,6 +207,7 @@ urlpatterns = [
     path("api/v1/", include((v1_urlpatterns, "v1"))),
     # Backwards compatibility fallback routes
     path("api/health/", HealthCheckView.as_view(), name="health_check"),
+    path("api/check-storage/", CheckStorageView.as_view(), name="check_storage"),
     path("api/metrics/", PrometheusMetricsView.as_view(), name="prometheus_metrics"),
     path("api/auth/", include("apps.accounts.urls")),
     path("api/properties/", include("apps.properties.urls")),
