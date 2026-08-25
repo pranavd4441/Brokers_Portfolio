@@ -9,18 +9,52 @@ from django.db import models
 
 
 class Tenant(models.Model):
+    PLAN_STATUS_CHOICES = (
+        ("PILOT", "14-day pilot"),
+        ("ACTIVE", "Active paid plan"),
+        ("EXPIRED", "Pilot expired"),
+        ("CANCELLED", "Cancelled"),
+    )
+    LOCALE_CHOICES = (("en", "English"), ("hi", "Hindi"), ("mr", "Marathi"))
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
     logo_url = models.CharField(max_length=512, blank=True, null=True)
     brand_color = models.CharField(max_length=7, default="#0F172A")  # Hex code
     whatsapp_default_number = models.CharField(max_length=20, blank=True, null=True)
     subscription_plan = models.CharField(max_length=50, default="FREE")
+    plan_status = models.CharField(max_length=20, choices=PLAN_STATUS_CHOICES, default="PILOT")
+    pilot_started_at = models.DateTimeField(blank=True, null=True)
+    pilot_ends_at = models.DateTimeField(blank=True, null=True)
+    founding_price_expires_at = models.DateTimeField(blank=True, null=True)
+    acquisition_source = models.CharField(max_length=100, default="direct", blank=True)
+    acquisition_city = models.CharField(max_length=100, default="Pune", blank=True)
+    referral_code = models.CharField(max_length=24, unique=True, blank=True, null=True)
+    referred_by_code = models.CharField(max_length=24, blank=True, null=True)
+    preferred_locale = models.CharField(max_length=2, choices=LOCALE_CHOICES, default="en")
+    marketing_consent = models.BooleanField(default=False)
+    dpdp_consent_at = models.DateTimeField(blank=True, null=True)
+    share_actions_count = models.PositiveIntegerField(default=0)
+    share_actions_count = models.PositiveIntegerField(default=0)
     listing_expiry_days = models.IntegerField(default=30)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        from datetime import timedelta
+        from django.utils import timezone
+
+        if not self.referral_code:
+            self.referral_code = uuid.uuid4().hex[:8].upper()
+        if not self.pilot_started_at:
+            self.pilot_started_at = timezone.now()
+        if not self.pilot_ends_at:
+            self.pilot_ends_at = self.pilot_started_at + timedelta(days=14)
+        if not self.founding_price_expires_at:
+            self.founding_price_expires_at = self.pilot_started_at + timedelta(days=365)
+        super().save(*args, **kwargs)
 
 
 class UserManager(BaseUserManager):

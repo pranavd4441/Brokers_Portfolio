@@ -25,6 +25,22 @@ export function getApiUrl() {
 
 export interface ApiRequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean>;
+  skipAuth?: boolean;
+}
+
+interface TokenRefreshResponse {
+  access: string;
+  refresh?: string;
+}
+
+interface ApiErrorPayload {
+  message?: string;
+  detail?: string;
+  details?: Record<string, unknown>;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 // Memory cache for active tokens to avoid redundant localstorage reads
@@ -101,28 +117,36 @@ async function handleTokenRefresh(): Promise<string | null> {
       return null;
     }
 
-    const data = await response.json();
-    const newAccess = data.access;
-    const newRefresh = data.refresh || refreshToken;
+    const data = await response.json() as unknown;
+    if (!isRecord(data) || typeof data.access !== 'string') {
+      authTokens.clearTokens();
+      isRefreshing = false;
+      return null;
+    }
+
+    const tokenData = data as unknown as TokenRefreshResponse;
+    const newAccess = tokenData.access;
+    const newRefresh = tokenData.refresh || refreshToken;
 
     authTokens.setTokens(newAccess, newRefresh);
     isRefreshing = false;
     onRefreshed(newAccess);
     return newAccess;
-  } catch (error) {
+  } catch {
     authTokens.clearTokens();
     isRefreshing = false;
     return null;
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function fetchApi<T = any>(endpoint: string, options: ApiRequestOptions = {}): Promise<T> {
-  const { params, headers, ...customConfig } = options;
+  const { params, headers, skipAuth = false, ...customConfig } = options;
   const accessToken = authTokens.getAccessToken();
 
   // Build full URL
   const baseUrl = getApiUrl();
-  let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   
   // Apply query parameters
   let url = `${baseUrl}${cleanEndpoint}`;
@@ -142,7 +166,20 @@ export async function fetchApi<T = any>(endpoint: string, options: ApiRequestOpt
   if (!(customConfig.body instanceof FormData)) {
     defaultHeaders['Content-Type'] = 'application/json';
   }
-  if (accessToken) {
+  const publicEndpoints = [
+    '/auth/login/',
+    '/auth/register/',
+    '/auth/token/refresh/',
+    '/auth/mfa/verify/',
+    '/analytics/log/',
+    '/health/',
+  ];
+  const shouldAttachAuth =
+    accessToken &&
+    !skipAuth &&
+    !publicEndpoints.some((publicEndpoint) => cleanEndpoint.startsWith(publicEndpoint));
+
+  if (shouldAttachAuth) {
     defaultHeaders['Authorization'] = `Bearer ${accessToken}`;
   }
 
@@ -188,7 +225,7 @@ export async function fetchApi<T = any>(endpoint: string, options: ApiRequestOpt
       const bodyPreview = await response.text();
       if (bodyPreview.trimStart().startsWith('<')) {
         throw new Error(
-          `Backend unavailable — received HTML instead of JSON (${response.status} ${response.statusText}). ` +
+          `Backend unavailable - received HTML instead of JSON (${response.status} ${response.statusText}). ` +
           `Make sure Django is running on port 8000.`
         );
       }
@@ -196,13 +233,14 @@ export async function fetchApi<T = any>(endpoint: string, options: ApiRequestOpt
       throw new Error(bodyPreview || `Unexpected response (${response.status})`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as unknown;
 
     if (!response.ok) {
-      let errMsg = data.message || data.detail || `API error: ${response.status}`;
-      if (data.details && typeof data.details === 'object') {
+      const errorPayload = isRecord(data) ? data as ApiErrorPayload : {};
+      let errMsg = errorPayload.message || errorPayload.detail || `API error: ${response.status}`;
+      if (errorPayload.details && isRecord(errorPayload.details)) {
         const detailParts: string[] = [];
-        for (const [key, value] of Object.entries(data.details)) {
+        for (const [key, value] of Object.entries(errorPayload.details)) {
           const fieldName = key.charAt(0).toUpperCase() + key.slice(1);
           if (Array.isArray(value)) {
             detailParts.push(`${fieldName}: ${value.join(', ')}`);
@@ -218,9 +256,9 @@ export async function fetchApi<T = any>(endpoint: string, options: ApiRequestOpt
     }
 
     return rewriteMediaUrls(data) as T;
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Avoid double-logging SyntaxErrors from bad JSON
-    const msg: string = error?.message ?? String(error);
+    const msg = error instanceof Error ? error.message : String(error);
     const isJsonError = msg.includes('JSON') || msg.includes('Unexpected token');
     if (!isJsonError) {
       console.error('fetchApi Error:', msg);
@@ -231,18 +269,19 @@ export async function fetchApi<T = any>(endpoint: string, options: ApiRequestOpt
   }
 }
 
-function rewriteMediaUrls(data: any): any {
+function rewriteMediaUrls(data: unknown): unknown {
   if (data === null || data === undefined) {
     return data;
   }
   if (typeof data === 'string') {
+    let value = data;
     // Translate legacy Supabase S3 endpoints to public CDN paths on-the-fly
-    if (data.includes('storage.supabase.co/storage/v1/s3/')) {
-      data = data.replace('storage.supabase.co/storage/v1/s3', 'supabase.co/storage/v1/object/public');
+    if (value.includes('storage.supabase.co/storage/v1/s3/')) {
+      value = value.replace('storage.supabase.co/storage/v1/s3', 'supabase.co/storage/v1/object/public');
     }
-    const mediaIndex = data.indexOf('/media/');
+    const mediaIndex = value.indexOf('/media/');
     if (mediaIndex !== -1) {
-      const mediaPath = data.substring(mediaIndex);
+      const mediaPath = value.substring(mediaIndex);
       const apiUrl = getApiUrl();
       if (apiUrl.startsWith('http')) {
         const backendOrigin = apiUrl.replace(/\/api$/, '');
@@ -250,13 +289,13 @@ function rewriteMediaUrls(data: any): any {
       }
       return mediaPath;
     }
-    return data;
+    return value;
   }
   if (Array.isArray(data)) {
     return data.map(rewriteMediaUrls);
   }
-  if (typeof data === 'object') {
-    const copy: any = {};
+  if (isRecord(data)) {
+    const copy: Record<string, unknown> = {};
     for (const key in data) {
       if (Object.prototype.hasOwnProperty.call(data, key)) {
         copy[key] = rewriteMediaUrls(data[key]);

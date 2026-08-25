@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { toast } from 'sonner';
 
@@ -25,6 +25,10 @@ interface AIData {
   description: string;
   headlines: string[];
   whatsapp_pitches: WhatsAppPitch[];
+  follow_up_messages?: string[];
+  qualification_questions?: string[];
+  objection_handlers?: Array<{ objection: string; reply: string }>;
+  recommended_next_action?: string;
 }
 
 export default function AIAssistantModal({
@@ -81,8 +85,9 @@ export default function AIAssistantModal({
 
       setAIData(data);
       toast.success('AI suggestions generated!');
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to generate suggestions');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to generate suggestions';
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -94,7 +99,7 @@ export default function AIAssistantModal({
       setCopiedPitchIndex(index);
       toast.success('Pitch copied to clipboard!');
       setTimeout(() => setCopiedPitchIndex(null), 2000);
-    } catch (err) {
+    } catch {
       toast.error('Failed to copy to clipboard');
     }
   };
@@ -270,6 +275,72 @@ export default function AIAssistantModal({
                           <>📋 Copy Pitch</>
                         )}
                       </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Broker Conversion Kit */}
+              <div className="os-frosted-dark p-4 rounded-2xl border border-[rgba(255,255,255,0.04)] space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <span className="text-[10px] font-bold text-[#16c784] uppercase tracking-wider block">
+                      Broker conversion kit
+                    </span>
+                    <p className="text-[11px] text-[#4a5470] mt-1">
+                      Follow-ups, qualification prompts, and objection replies for faster WhatsApp closure.
+                    </p>
+                  </div>
+                  {aiData.recommended_next_action && (
+                    <div className="max-w-sm rounded-xl border border-[#16c784]/20 bg-[#16c784]/8 px-3 py-2 text-[10px] leading-relaxed text-[#b7f7d7]">
+                      {aiData.recommended_next_action}
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  <div className="rounded-xl border border-[rgba(255,255,255,0.04)] bg-[#07090f]/35 p-3">
+                    <h4 className="text-[11px] font-bold text-[#f0f4ff] mb-3">Follow-up messages</h4>
+                    <div className="space-y-2">
+                      {(aiData.follow_up_messages ?? []).map((msg, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => copyToClipboard(msg, 100 + idx)}
+                          className="w-full text-left rounded-lg border border-[rgba(255,255,255,0.04)] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-[11px] leading-relaxed text-[#8892aa] hover:text-[#f0f4ff] hover:border-[#16c784]/25 transition-all cursor-pointer"
+                        >
+                          {msg}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-[rgba(255,255,255,0.04)] bg-[#07090f]/35 p-3">
+                    <h4 className="text-[11px] font-bold text-[#f0f4ff] mb-3">Questions to ask</h4>
+                    <ul className="space-y-2">
+                      {(aiData.qualification_questions ?? []).map((question, idx) => (
+                        <li key={idx} className="flex gap-2 text-[11px] leading-relaxed text-[#8892aa]">
+                          <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[#38bdf8] shrink-0" />
+                          <span>{question}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="rounded-xl border border-[rgba(255,255,255,0.04)] bg-[#07090f]/35 p-3">
+                    <h4 className="text-[11px] font-bold text-[#f0f4ff] mb-3">Objection replies</h4>
+                    <div className="space-y-2">
+                      {(aiData.objection_handlers ?? []).map((item, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => copyToClipboard(item.reply, 200 + idx)}
+                          className="w-full text-left rounded-lg border border-[rgba(255,255,255,0.04)] bg-[rgba(255,255,255,0.02)] px-3 py-2 hover:border-[#a78bfa]/25 transition-all cursor-pointer"
+                        >
+                          <span className="block text-[10px] font-bold text-[#a78bfa] mb-1">{item.objection}</span>
+                          <span className="block text-[11px] leading-relaxed text-[#8892aa]">{item.reply}</span>
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </div>

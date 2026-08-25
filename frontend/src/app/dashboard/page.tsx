@@ -8,6 +8,7 @@ import { fetchApi } from '@/lib/api';
 import { useAuthStore } from '@/store/useAuthStore';
 import ShareModal from '@/components/ShareModal';
 import PropertyCard from '@/components/PropertyCard';
+import OnboardingChecklist from '@/components/OnboardingChecklist';
 
 // ─── Type definitions ──────────────────────────────────────────
 interface PropertyImage {
@@ -346,6 +347,7 @@ export default function DashboardPage() {
 
   return (
     <>
+      <OnboardingChecklist />
       {/* ── Share Modal ── */}
       {shareData && (
         <ShareModal
@@ -408,6 +410,88 @@ export default function DashboardPage() {
               gradientClass="grad-amber"
               icon="📈"
             />
+          </div>
+        )}
+
+        {!isLoading && (
+          <div className="grid grid-cols-1 xl:grid-cols-[1.3fr_0.7fr] gap-4">
+            <div className="os-card overflow-hidden border-[#16c784]/15">
+              <div className="p-5 md:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-[#16c784] shadow-[0_0_12px_rgba(22,199,132,0.7)]" />
+                    <span className="os-label">WhatsApp sales command center</span>
+                  </div>
+                  <div>
+                    <h2 className="text-lg md:text-xl font-bold text-[#f0f4ff] tracking-tight">
+                      Turn property views into same-day conversations
+                    </h2>
+                    <p className="mt-1.5 max-w-2xl text-xs md:text-sm text-[#8892aa] leading-relaxed">
+                      Share branded listing links, capture CTA intent, and follow up while the buyer is still warm.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <Link href="/dashboard/properties/new" className="h-9 px-4 rounded-xl bg-[#16c784] text-[#07090f] text-xs font-bold flex items-center justify-center gap-1.5 hover:opacity-90 transition-all">
+                      <span>+</span>
+                      New share-ready listing
+                    </Link>
+                    <Link href="/dashboard/leads" className="h-9 px-4 rounded-xl border border-[#38bdf8]/25 bg-[#38bdf8]/10 text-[#9ee8ff] text-xs font-bold flex items-center justify-center hover:bg-[#38bdf8]/15 transition-all">
+                      Open lead inbox
+                    </Link>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 lg:min-w-[330px]">
+                  <div className="rounded-2xl border border-[rgba(255,255,255,0.05)] bg-[#07090f]/45 p-3">
+                    <div className="text-xl font-bold text-[#f0f4ff]">
+                      {(properties ?? []).filter(p => p.slug && p.status !== 'SOLD' && p.status !== 'EXPIRED').length}
+                    </div>
+                    <div className="mt-1 text-[10px] font-semibold leading-snug text-[#4a5470]">
+                      Share-ready listings
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-[rgba(255,255,255,0.05)] bg-[#07090f]/45 p-3">
+                    <div className="text-xl font-bold text-[#16c784]">
+                      {summary?.total_clicks ?? 0}
+                    </div>
+                    <div className="mt-1 text-[10px] font-semibold leading-snug text-[#4a5470]">
+                      Hot CTA signals
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-[rgba(255,255,255,0.05)] bg-[#07090f]/45 p-3">
+                    <div className="text-xl font-bold text-[#38bdf8]">
+                      {mobilePercent}%
+                    </div>
+                    <div className="mt-1 text-[10px] font-semibold leading-snug text-[#4a5470]">
+                      Mobile visitors
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="os-card p-5">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div>
+                  <h3 className="text-sm font-bold text-[#f0f4ff]">Next best moves</h3>
+                  <p className="text-[10px] text-[#4a5470] mt-0.5">For today&apos;s broker workflow</p>
+                </div>
+                <span className="rounded-full border border-[#a78bfa]/25 bg-[#a78bfa]/10 px-2.5 py-1 text-[9px] font-bold text-[#c4b5fd]">
+                  AI assisted
+                </span>
+              </div>
+              <div className="space-y-2.5">
+                <div className="rounded-xl bg-[#07090f]/45 border border-[rgba(255,255,255,0.04)] px-3 py-2.5">
+                  <p className="text-[11px] font-semibold text-[#c8d0e0]">Follow up inside 5 minutes after every WhatsApp CTA click.</p>
+                </div>
+                <div className="rounded-xl bg-[#07090f]/45 border border-[rgba(255,255,255,0.04)] px-3 py-2.5">
+                  <p className="text-[11px] font-semibold text-[#c8d0e0]">Use AI pitches for first message, then ask video tour or site visit.</p>
+                </div>
+                <div className="rounded-xl bg-[#07090f]/45 border border-[rgba(255,255,255,0.04)] px-3 py-2.5">
+                  <p className="text-[11px] font-semibold text-[#c8d0e0]">Keep SOLD and EXPIRED listings out of public sharing.</p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

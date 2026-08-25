@@ -72,7 +72,7 @@ def get_client_city(request):
 def get_frontend_url(request=None):
     """
     Resolves the frontend landing page URL.
-    - Local: maps localhost:8000 to localhost:3000
+    - Local: maps localhost:8000 to the PropertyOS frontend on localhost:3100
     - Production (Render): maps property-os-backend to property-os-frontend
     """
     import os
@@ -87,7 +87,7 @@ def get_frontend_url(request=None):
         url = os.getenv("NEXT_PUBLIC_SITE_URL", "http://localhost").rstrip("/")
 
     if "localhost" in url or "127.0.0.1" in url:
-        return url.replace(":8000", ":3000")
+        return url.replace(":8000", ":3100")
     if "-backend" in url:
         return url.replace("-backend", "-frontend")
     return url

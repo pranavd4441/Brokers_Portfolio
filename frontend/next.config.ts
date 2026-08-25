@@ -3,6 +3,10 @@ import type { NextConfig } from "next";
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    root: process.cwd(),
+  },
+
   // Proxy all /api/* requests to the Django backend.
   // This avoids CORS issues and means the frontend never needs
   // to know the backend's origin — only Next.js does.

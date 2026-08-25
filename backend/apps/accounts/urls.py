@@ -9,6 +9,8 @@ from .views import (
     RegistrationView,
     TeamListView,
     TenantBrandingView,
+    TenantLogoUploadView,
+    OnboardingStatusView,
     UserSessionViewSet,
 )
 
@@ -21,6 +23,8 @@ urlpatterns = [
     path("token/refresh/", CustomTokenRefreshView.as_view(), name="token_refresh"),
     path("me/", MeView.as_view(), name="auth_me"),
     path("tenant/branding/", TenantBrandingView.as_view(), name="tenant_branding"),
+    path("tenant/logo/", TenantLogoUploadView.as_view(), name="tenant_logo"),
+    path("onboarding/", OnboardingStatusView.as_view(), name="onboarding_status"),
     path("team/", TeamListView.as_view(), name="auth_team"),
     path("mfa/verify/", MFAVerifyView.as_view(), name="mfa_verify"),
     path("", include(router.urls)),

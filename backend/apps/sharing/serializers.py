@@ -60,4 +60,6 @@ class ShareLinkSerializer(serializers.ModelSerializer):
             f"Interested? Let's chat! 💬"
         )
 
+        # API responses return readable text. Each client encodes it exactly once
+        # when constructing the destination share URL.
         return message

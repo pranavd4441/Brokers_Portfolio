@@ -143,7 +143,8 @@ class WhatsAppWebhookView(APIView):
 
         auth_token = getattr(settings, "TWILIO_AUTH_TOKEN", "")
         if not auth_token:
-            return True  # Skip verification in dev/test
+            logger.error("TWILIO_AUTH_TOKEN is missing; rejecting webhook.")
+            return False
 
         signature = request.headers.get("X-Twilio-Signature", "")
         url = request.build_absolute_uri()
@@ -170,7 +171,8 @@ class WhatsAppWebhookView(APIView):
 
         app_secret = getattr(settings, "WHATSAPP_APP_SECRET", "")
         if not app_secret:
-            return True
+            logger.error("WHATSAPP_APP_SECRET is missing; rejecting webhook.")
+            return False
 
         signature_header = request.headers.get("X-Hub-Signature-256", "")
         if not signature_header or not signature_header.startswith("sha256="):

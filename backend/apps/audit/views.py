@@ -20,6 +20,10 @@ class PrometheusMetricsView(APIView):
     def get(self, request, *args, **kwargs):
         # Optional scrape token auth
         scrape_token = os.getenv("METRICS_SCRAPE_TOKEN", "")
+        env = os.getenv("DJANGO_ENVIRONMENT", "development").lower()
+        if env in ("production", "staging") and not scrape_token:
+            return HttpResponse("Metrics scrape token is not configured", status=503)
+
         if scrape_token:
             incoming_token = request.headers.get(
                 "X-Metrics-Token"

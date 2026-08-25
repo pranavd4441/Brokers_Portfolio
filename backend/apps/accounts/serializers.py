@@ -1,3 +1,4 @@
+from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -15,9 +16,23 @@ class TenantSerializer(serializers.ModelSerializer):
             "brand_color",
             "whatsapp_default_number",
             "subscription_plan",
+            "plan_status",
+            "pilot_started_at",
+            "pilot_ends_at",
+            "founding_price_expires_at",
+            "acquisition_source",
+            "acquisition_city",
+            "referral_code",
+            "referred_by_code",
+            "preferred_locale",
+            "marketing_consent",
+            "share_actions_count",
             "created_at",
         ]
-        read_only_fields = ["id", "subscription_plan", "created_at"]
+        read_only_fields = [
+            "id", "subscription_plan", "plan_status", "pilot_started_at", "pilot_ends_at",
+            "founding_price_expires_at", "referral_code", "referred_by_code", "share_actions_count", "created_at"
+        ]
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -41,105 +56,89 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     def validate(self, attrs):
         import logging
-        import traceback
 
         from django.contrib.auth import get_user_model
-        from rest_framework import serializers
-        from rest_framework.exceptions import AuthenticationFailed
 
         email = attrs.get(self.username_field)
-        User = get_user_model()
+        user_model = get_user_model()
 
-        if email and not User.objects.filter(email__iexact=email).exists():
+        if email and not user_model.objects.filter(email__iexact=email).exists():
             raise serializers.ValidationError(
-                {"detail": "your accoount is noyt register you should register first."}
+                {"detail": "No account is registered with this email address."}
             )
 
-        try:
-            data = super().validate(attrs)
+        data = super().validate(attrs)
 
-            # 1. Check if User has Multi-Factor Authentication enabled
-            if self.user.mfa_enabled:
-                from .models import MFATicket
+        # 1. Check if User has Multi-Factor Authentication enabled
+        if self.user.mfa_enabled:
+            from .models import MFATicket
 
-                ticket = MFATicket.objects.create(user=self.user)
-                return {
-                    "mfa_required": True,
-                    "ticket": str(ticket.id),
-                    "mfa_type": self.user.mfa_type,
-                }
-
-            # 2. Record User Session Details
-            refresh_token_str = data.get("refresh")
-            if refresh_token_str:
-                from rest_framework_simplejwt.tokens import RefreshToken
-
-                refresh = RefreshToken(refresh_token_str)
-                jti = refresh.get("jti")
-
-                request = self.context.get("request")
-                if request:
-                    from .models import UserSession
-                    from .utils import get_client_city, get_client_ip, parse_user_agent
-
-                    user_agent = request.META.get("HTTP_USER_AGENT", "")
-                    browser, os_name = parse_user_agent(user_agent)
-                    ip = get_client_ip(request)
-                    city = get_client_city(request)
-
-                    # Audit check: detect if this is a new/unusual login location
-                    has_past_sessions = UserSession.objects.filter(
-                        user=self.user, is_active=True
-                    ).exists()
-                    if has_past_sessions:
-                        location_exists = UserSession.objects.filter(
-                            user=self.user, city=city, is_active=True
-                        ).exists()
-                        if not location_exists and city != "Unknown":
-                            security_logger = logging.getLogger("security")
-                            security_logger.warning(
-                                f"Security Alert: New login location detected for {self.user.email} in {city} (IP: {ip})",
-                                extra={
-                                    "extra_fields": {
-                                        "user_id": str(self.user.id),
-                                        "city": city,
-                                        "ip": ip,
-                                        "browser": browser,
-                                        "os": os_name,
-                                    }
-                                },
-                            )
-
-                    UserSession.objects.create(
-                        user=self.user,
-                        token_jti=jti,
-                        ip_address=ip,
-                        user_agent=user_agent[:512],
-                        browser=browser,
-                        os=os_name,
-                        city=city,
-                    )
-
-            # Also return user details in the response for convenience
-            data["user"] = {
-                "id": str(self.user.id),
-                "name": self.user.name,
-                "email": self.user.email,
-                "role": self.user.role,
-                "tenant_id": str(self.user.tenant_id) if self.user.tenant_id else None,
+            ticket = MFATicket.objects.create(user=self.user)
+            return {
+                "mfa_required": True,
+                "ticket": str(ticket.id),
+                "mfa_type": self.user.mfa_type,
             }
-            return data
-        except serializers.ValidationError:
-            raise
-        except AuthenticationFailed as e:
-            raise serializers.ValidationError(
-                {"detail": "Invalid credentials. Please try again."}
-            )
-        except Exception as e:
-            tb_str = traceback.format_exc()
-            raise serializers.ValidationError(
-                {"detail": f"DEBUG_ERROR: {str(e)}", "traceback": tb_str}
-            )
+        # 2. Record User Session Details
+        refresh_token_str = data.get("refresh")
+        if refresh_token_str:
+            from rest_framework_simplejwt.tokens import RefreshToken
+
+            refresh = RefreshToken(refresh_token_str)
+            jti = refresh.get("jti")
+
+            request = self.context.get("request")
+            if request:
+                from .models import UserSession
+                from .utils import get_client_city, get_client_ip, parse_user_agent
+
+                user_agent = request.META.get("HTTP_USER_AGENT", "")
+                browser, os_name = parse_user_agent(user_agent)
+                ip = get_client_ip(request)
+                city = get_client_city(request)
+
+                # Audit check: detect if this is a new/unusual login location
+                has_past_sessions = UserSession.objects.filter(
+                    user=self.user, is_active=True
+                ).exists()
+                if has_past_sessions:
+                    location_exists = UserSession.objects.filter(
+                        user=self.user, city=city, is_active=True
+                    ).exists()
+                    if not location_exists and city != "Unknown":
+                        security_logger = logging.getLogger("security")
+                        security_logger.warning(
+                            f"Security Alert: New login location detected for {self.user.email} in {city} (IP: {ip})",
+                            extra={
+                                "extra_fields": {
+                                    "user_id": str(self.user.id),
+                                    "city": city,
+                                    "ip": ip,
+                                    "browser": browser,
+                                    "os": os_name,
+                                }
+                            },
+                        )
+
+                UserSession.objects.create(
+                    user=self.user,
+                    token_jti=jti,
+                    ip_address=ip,
+                    user_agent=user_agent[:512],
+                    browser=browser,
+                    os=os_name,
+                    city=city,
+                )
+
+        # Also return user details in the response for convenience
+        data["user"] = {
+            "id": str(self.user.id),
+            "name": self.user.name,
+            "email": self.user.email,
+            "role": self.user.role,
+            "tenant_id": str(self.user.tenant_id) if self.user.tenant_id else None,
+        }
+        return data
 
 
 class RegistrationSerializer(serializers.Serializer):
@@ -150,6 +149,17 @@ class RegistrationSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
     password = serializers.CharField(min_length=8, write_only=True, required=True)
     phone = serializers.CharField(max_length=20, required=True)
+    acquisition_source = serializers.CharField(max_length=100, required=False, default="direct")
+    acquisition_city = serializers.CharField(max_length=100, required=False, default="Pune")
+    referral_code = serializers.CharField(max_length=24, required=False, allow_blank=True)
+    preferred_locale = serializers.ChoiceField(choices=("en", "hi", "mr"), default="en")
+    marketing_consent = serializers.BooleanField(default=False)
+    dpdp_consent = serializers.BooleanField(required=True)
+
+    def validate_dpdp_consent(self, value):
+        if not value:
+            raise serializers.ValidationError("Consent is required to create and operate your workspace.")
+        return value
 
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():
@@ -158,16 +168,29 @@ class RegistrationSerializer(serializers.Serializer):
             )
         return value.lower()
 
+    def validate_password(self, value):
+        validate_password(value)
+        return value
+
     def create(self, validated_data):
         name = validated_data["name"]
         company_name = validated_data.get("company_name") or f"{name}'s Workspace"
         email = validated_data["email"]
         password = validated_data["password"]
         phone = validated_data["phone"]
+        from django.utils import timezone
 
         with transaction.atomic():
             # 1. Create Tenant
-            tenant = Tenant.objects.create(name=company_name)
+            tenant = Tenant.objects.create(
+                name=company_name,
+                acquisition_source=validated_data.get("acquisition_source", "direct"),
+                acquisition_city=validated_data.get("acquisition_city", "Pune"),
+                referred_by_code=validated_data.get("referral_code") or None,
+                preferred_locale=validated_data.get("preferred_locale", "en"),
+                marketing_consent=validated_data.get("marketing_consent", False),
+                dpdp_consent_at=timezone.now(),
+            )
 
             # 2. Create User linked to Tenant with OWNER role
             user = User.objects.create_user(

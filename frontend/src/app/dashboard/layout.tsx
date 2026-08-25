@@ -111,6 +111,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { href: '/dashboard/leads', label: 'Leads', icon: <span>🎯</span> },
     { href: '/dashboard/settings', label: 'Branding', icon: <span>✦</span> },
     { href: '/dashboard/settings/profile', label: 'Profile', icon: <span>👤</span> },
+    { href: '/dashboard/growth', label: 'Plan & referrals', icon: <span>↗</span> },
   ];
 
   const workspaceName = user?.tenant?.name || 'My Workspace';
@@ -199,6 +200,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* ─── MAIN CONTENT ────────────────────────────────────── */}
       <main className="flex-1 md:ml-[64px] lg:ml-[220px] min-h-screen">
         <div className="max-w-[1280px] mx-auto px-4 md:px-6 lg:px-10 py-6 md:py-10 pb-24 md:pb-10">
+          {user?.tenant?.plan_status === 'PILOT' && <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/20 bg-amber-400/[.06] px-4 py-3 text-xs text-amber-100"><span><b>Founding Broker pilot</b> · Free until {user.tenant.pilot_ends_at ? new Date(user.tenant.pilot_ends_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'}) : 'your pilot end date'}</span><Link href="/dashboard/growth" className="font-black text-amber-300">View plan →</Link></div>}
           {children}
         </div>
       </main>

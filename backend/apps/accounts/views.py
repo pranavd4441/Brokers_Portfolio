@@ -1,4 +1,5 @@
 from rest_framework import generics, permissions, status
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
@@ -20,6 +21,8 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     """
 
     serializer_class = CustomTokenObtainPairSerializer
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
     throttle_classes = [AnonRateThrottle]
 
 
@@ -29,6 +32,8 @@ class CustomTokenRefreshView(TokenRefreshView):
     Protected with AnonRateThrottle.
     """
 
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
     throttle_classes = [AnonRateThrottle]
 
 
@@ -40,6 +45,7 @@ class RegistrationView(generics.CreateAPIView):
     """
 
     serializer_class = RegistrationSerializer
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
     throttle_classes = [AnonRateThrottle]
 
@@ -104,6 +110,68 @@ class TenantBrandingView(generics.RetrieveUpdateAPIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
         return super().update(request, *args, **kwargs)
+
+
+class TenantLogoUploadView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, *args, **kwargs):
+        if request.user.role not in ["OWNER", "ADMIN"]:
+            return Response({"detail": "Only owners and admins can update the logo."}, status=403)
+        uploaded = request.FILES.get("logo")
+        if not uploaded:
+            return Response({"detail": "Choose a logo image to upload."}, status=400)
+        if uploaded.content_type not in {"image/png", "image/jpeg", "image/webp"}:
+            return Response({"detail": "Use a PNG, JPEG, or WebP image."}, status=400)
+        if uploaded.size > 2 * 1024 * 1024:
+            return Response({"detail": "Logo must be smaller than 2 MB."}, status=400)
+
+        from django.core.files.storage import default_storage
+        from pathlib import Path
+
+        suffix = Path(uploaded.name).suffix.lower() or ".png"
+        path = default_storage.save(f"tenant-logos/{request.user.tenant_id}{suffix}", uploaded)
+        try:
+            logo_url = request.build_absolute_uri(default_storage.url(path))
+        except Exception:
+            logo_url = default_storage.url(path)
+        tenant = request.user.tenant
+        tenant.logo_url = logo_url
+        tenant.save(update_fields=["logo_url", "updated_at"])
+        return Response({"logo_url": logo_url})
+
+
+class OnboardingStatusView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        from apps.analytics.models import AnalyticsEvent
+        from apps.properties.models import Property
+
+        tenant = request.user.tenant
+        properties = Property.objects.filter(tenant=tenant)
+        listing_count = properties.count()
+        share_count = tenant.share_actions_count
+        analytics_count = AnalyticsEvent.objects.filter(property__tenant=tenant).count()
+        branding_complete = bool(tenant.name and tenant.logo_url and tenant.whatsapp_default_number)
+        steps = [
+            {"id": "profile", "label": "Complete broker profile", "complete": bool(request.user.name and request.user.phone), "href": "/dashboard/settings/profile"},
+            {"id": "branding", "label": "Add logo and WhatsApp number", "complete": branding_complete, "href": "/dashboard/settings"},
+            {"id": "listing", "label": "Create your first listing", "complete": listing_count > 0, "href": "/dashboard/properties/new"},
+            {"id": "publish", "label": "Publish three property pages", "complete": listing_count >= 3, "href": "/dashboard"},
+            {"id": "share", "label": "Share with a real prospect", "complete": share_count >= 1, "href": "/dashboard"},
+            {"id": "results", "label": "Review buyer engagement", "complete": analytics_count >= 1, "href": "/dashboard"},
+        ]
+        return Response({
+            "steps": steps,
+            "completed": sum(1 for item in steps if item["complete"]),
+            "total": len(steps),
+            "activated": branding_complete and listing_count >= 3 and share_count >= 1,
+            "listing_count": listing_count,
+            "share_count": share_count,
+            "analytics_count": analytics_count,
+        })
 
 
 class TeamListView(generics.ListAPIView):
@@ -232,6 +300,7 @@ class MFAVerifyView(APIView):
     and return simple-jwt access/refresh tokens.
     """
 
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def post(self, request, *args, **kwargs):

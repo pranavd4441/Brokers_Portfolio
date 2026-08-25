@@ -55,9 +55,20 @@ def validate_environment():
     production_required = {
         "DATABASE_URL": "DATABASE_URL",  # nosec B105
         "JWT_SECRET_KEY": "JWT_SECRET_KEY",  # nosec B105
+        "METRICS_SCRAPE_TOKEN": "METRICS_SCRAPE_TOKEN",  # nosec B105
     }
 
     if is_prod_or_staging:
+        whatsapp_provider = os.getenv("WHATSAPP_GATEWAY_PROVIDER", "MOCK").upper()
+        if whatsapp_provider == "TWILIO":
+            production_required["TWILIO_AUTH_TOKEN"] = "TWILIO_AUTH_TOKEN"  # nosec B105
+            production_required["TWILIO_ACCOUNT_SID"] = "TWILIO_ACCOUNT_SID"  # nosec B105
+            production_required["TWILIO_WHATSAPP_NUMBER"] = "TWILIO_WHATSAPP_NUMBER"  # nosec B105
+        elif whatsapp_provider == "META":
+            production_required["WHATSAPP_ACCESS_TOKEN"] = "WHATSAPP_ACCESS_TOKEN"  # nosec B105
+            production_required["WHATSAPP_PHONE_NUMBER_ID"] = "WHATSAPP_PHONE_NUMBER_ID"  # nosec B105
+            production_required["WHATSAPP_APP_SECRET"] = "WHATSAPP_APP_SECRET"  # nosec B105
+
         missing_production = [
             logical_name
             for env_var, logical_name in production_required.items()

@@ -4,7 +4,6 @@ from rest_framework.response import Response
 
 from apps.accounts.serializers import TenantSerializer
 from apps.audit.utils import log_audit_event
-from apps.properties.models import Property
 from apps.properties.serializers import PropertySerializer
 
 from .models import ShareLink
@@ -36,6 +35,11 @@ class ShareLinkViewSet(viewsets.ModelViewSet):
         link = serializer.save(
             created_by=self.request.user, tenant=self.request.user.tenant
         )
+        from django.db.models import F
+        from apps.accounts.models import Tenant
+        Tenant.objects.filter(pk=self.request.user.tenant_id).update(
+            share_actions_count=F("share_actions_count") + 1
+        )
         # Log audit trail for sharing the property
         log_audit_event(
             self.request.user,
@@ -58,6 +62,7 @@ class PublicPropertyResolverView(generics.RetrieveAPIView):
 
     permission_classes = [permissions.AllowAny]
     throttle_classes = [PublicRateThrottle]
+    public_statuses = {"AVAILABLE", "NEGOTIATION", "SITE_VISIT", "BOOKED"}
 
     def retrieve(self, request, slug=None, *args, **kwargs):
         if not FeatureFlagService.is_enabled("ENABLE_PUBLIC_SHARING"):
@@ -65,35 +70,31 @@ class PublicPropertyResolverView(generics.RetrieveAPIView):
                 {"detail": "Public sharing is currently disabled."},
                 status=status.HTTP_403_FORBIDDEN,
             )
-        # 1. Look up the share link using unfiltered manager
         try:
             share_link = ShareLink.objects_unfiltered.select_related(
                 "property", "tenant", "created_by"
             ).get(slug=slug)
-
-            # 2. Check for link expiry
-            if share_link.expiry and share_link.expiry < timezone.now():
-                return Response(
-                    {"detail": "This sharing link has expired."},
-                    status=status.HTTP_410_GONE,
-                )
-
-            property_obj = share_link.property
-            tenant_obj = share_link.tenant
-            broker_user = share_link.created_by
         except ShareLink.DoesNotExist:
-            # Fallback: check if slug is actually a property ID
-            try:
-                property_obj = Property.objects_unfiltered.select_related(
-                    "tenant", "created_by", "assigned_to"
-                ).get(id=slug)
-                tenant_obj = property_obj.tenant
-                broker_user = property_obj.created_by or property_obj.assigned_to
-            except (Property.DoesNotExist, ValueError):
-                return Response(
-                    {"detail": "This listing link is invalid or has been removed."},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
+            return Response(
+                {"detail": "This listing link is invalid or has been removed."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if share_link.expiry and share_link.expiry < timezone.now():
+            return Response(
+                {"detail": "This sharing link has expired."},
+                status=status.HTTP_410_GONE,
+            )
+
+        property_obj = share_link.property
+        if property_obj.status not in self.public_statuses:
+            return Response(
+                {"detail": "This listing is no longer available publicly."},
+                status=status.HTTP_410_GONE,
+            )
+
+        tenant_obj = share_link.tenant
+        broker_user = share_link.created_by
 
         # 4. Serialize property
         property_serializer = PropertySerializer(

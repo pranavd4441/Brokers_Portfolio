@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 
 from apps.properties.models import Property
+from apps.sharing.models import ShareLink
 
 from .models import AnalyticsEvent
 
@@ -27,6 +28,7 @@ class PublicEventLogView(generics.CreateAPIView):
 
     permission_classes = [permissions.AllowAny]
     throttle_classes = [PublicRateThrottle]
+    public_statuses = {"AVAILABLE", "NEGOTIATION", "SITE_VISIT", "BOOKED"}
 
     def post(self, request, *args, **kwargs):
         if not FeatureFlagService.is_enabled("ENABLE_ANALYTICS"):
@@ -36,6 +38,7 @@ class PublicEventLogView(generics.CreateAPIView):
             )
         property_id = request.data.get("property")
         event_type = request.data.get("event_type")
+        share_slug = request.data.get("share_slug") or request.data.get("slug")
 
         if not property_id or not event_type:
             return Response(
@@ -43,13 +46,43 @@ class PublicEventLogView(generics.CreateAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # 1. Resolve property (verify it exists, using unfiltered since it's a public click)
+        valid_event_types = {choice[0] for choice in AnalyticsEvent.EVENT_TYPES}
+        if event_type not in valid_event_types:
+            return Response(
+                {"detail": "Unsupported analytics event type."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # 1. Resolve only properties that are actively exposed through a share link.
         try:
-            property_obj = Property.objects_unfiltered.get(id=property_id)
+            property_obj = Property.objects_unfiltered.select_related(
+                "tenant", "created_by", "assigned_to"
+            ).get(id=property_id)
         except Property.DoesNotExist:
             return Response(
                 {"detail": "Property listing not found."},
                 status=status.HTTP_404_NOT_FOUND,
+            )
+
+        share_links = ShareLink.objects_unfiltered.filter(property=property_obj)
+        if share_slug:
+            share_links = share_links.filter(slug=share_slug)
+
+        share_link = share_links.order_by("-created_at").first()
+        if not share_link:
+            return Response(
+                {"detail": "This listing is not available through a public share link."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        if share_link.expiry and share_link.expiry < timezone.now():
+            return Response(
+                {"detail": "This sharing link has expired."},
+                status=status.HTTP_410_GONE,
+            )
+        if property_obj.status not in self.public_statuses:
+            return Response(
+                {"detail": "This listing is no longer available publicly."},
+                status=status.HTTP_410_GONE,
             )
 
         # 2. Extract Client IP and hash it for GDPR compliance
@@ -95,19 +128,43 @@ class PublicEventLogView(generics.CreateAPIView):
         if event_type in ["WHATSAPP_CLICK", "PHONE_CLICK"]:
             buyer_name = request.data.get("buyer_name", "A prospective buyer")
             buyer_phone = request.data.get("buyer_phone", "Not captured")
+            buyer_name = str(buyer_name).strip()[:120] or "A prospective buyer"
+            buyer_phone = str(buyer_phone).strip()[:20] or "Not captured"
 
             # Create Lead record in the database
+            lead = None
             try:
                 from apps.leads.models import Lead
 
-                Lead.objects.create(
+                recent_window = timezone.now() - timedelta(hours=6)
+                lead = Lead.objects_unfiltered.filter(
                     tenant=property_obj.tenant,
                     property=property_obj,
-                    source=event_type,
-                    buyer_name=buyer_name,
                     phone=buyer_phone,
-                    analytics_event=event,
-                )
+                    created_at__gte=recent_window,
+                ).first()
+                if lead:
+                    lead.buyer_name = buyer_name
+                    lead.source = event_type
+                    lead.analytics_event = event
+                    lead.notes = (
+                        (lead.notes or "")
+                        + f"\nLatest signal: {event_type} at {timezone.now().isoformat()}"
+                    ).strip()
+                    lead.save(update_fields=["buyer_name", "source", "analytics_event", "notes", "updated_at"])
+                else:
+                    lead = Lead.objects.create(
+                        tenant=property_obj.tenant,
+                        property=property_obj,
+                        source=event_type,
+                        buyer_name=buyer_name,
+                        phone=buyer_phone,
+                        analytics_event=event,
+                        notes=(
+                            "Auto-captured from public listing CTA. "
+                            "Recommended action: call or WhatsApp within 5 minutes."
+                        ),
+                    )
             except Exception as le:
                 logger.error(f"Failed to create Lead record: {str(le)}")
 
@@ -115,15 +172,8 @@ class PublicEventLogView(generics.CreateAPIView):
             if broker and broker.phone:
                 broker_phone = broker.phone
 
-                # Resolve public link in main thread (thread-safe database access)
-                from apps.sharing.models import ShareLink
-
-                share_link = ShareLink.objects_unfiltered.filter(
-                    property=property_obj
-                ).first()
-                slug = share_link.slug if share_link else str(property_obj.id)
                 host = get_frontend_url(request)
-                public_url = f"{host}/p/{slug}"
+                public_url = f"{host}/p/{share_link.slug}"
 
                 event_label = (
                     "WhatsApp Click"
@@ -138,7 +188,13 @@ class PublicEventLogView(generics.CreateAPIView):
                     f"🏡 *Listing:* {property_obj.title}\n"
                     f"💵 *Price:* ₹{float(property_obj.price):,.2f}\n"
                     f"🔗 *Listing Link:* {public_url}\n\n"
-                    "📞 *Call them within 5 minutes — fastest broker wins.*"
+                    "🔥 *5-minute playbook:*\n"
+                    "1. Reply immediately with the listing link.\n"
+                    "2. Ask: \"Would you like a video tour or site visit slot?\"\n"
+                    "3. Offer 2 time options so they can choose fast.\n\n"
+                    "Suggested reply:\n"
+                    f"Hi {buyer_name.split()[0]}, thanks for checking {property_obj.title}. "
+                    "Would you prefer a quick video tour or a site visit?"
                 )
 
                 import threading
@@ -148,7 +204,16 @@ class PublicEventLogView(generics.CreateAPIView):
                         from apps.whatsapp.services import get_whatsapp_gateway
 
                         gateway = get_whatsapp_gateway()
-                        gateway.send_message(phone, body)
+                        buttons = None
+                        if lead:
+                            buttons = [
+                                {"id": f"lead_view_{lead.id}", "title": "View Lead"},
+                                {
+                                    "id": f"lead_contacted_{lead.id}",
+                                    "title": "Mark Contacted",
+                                },
+                            ]
+                        gateway.send_message(phone, body, buttons=buttons)
                     except Exception as le:
                         logger.error(
                             f"Failed to dispatch WhatsApp lead alert: {str(le)}"

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 interface ShareModalProps {
   url: string;
@@ -13,6 +13,10 @@ export default function ShareModal({ url, whatsappText, propertyTitle, onClose }
   const [copied, setCopied] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+  const plainText = useMemo(() => {
+    if (!/%[0-9A-Fa-f]{2}/.test(whatsappText)) return whatsappText;
+    try { return decodeURIComponent(whatsappText); } catch { return whatsappText; }
+  }, [whatsappText]);
 
   // Trap focus + ESC close
   useEffect(() => {
@@ -26,15 +30,6 @@ export default function ShareModal({ url, whatsappText, propertyTitle, onClose }
       document.body.style.overflow = '';
     };
   }, [onClose]);
-
-  // Auto-open WhatsApp when modal renders
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const encoded = encodeURIComponent(whatsappText);
-      window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [whatsappText]);
 
   const copyLink = async () => {
     try {
@@ -50,18 +45,18 @@ export default function ShareModal({ url, whatsappText, propertyTitle, onClose }
   };
 
   const shareViaWhatsApp = () => {
-    const encoded = encodeURIComponent(whatsappText);
+    const encoded = encodeURIComponent(plainText);
     window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
   };
 
   const shareViaTelegram = () => {
-    const encoded = encodeURIComponent(whatsappText);
+    const encoded = encodeURIComponent(plainText);
     window.open(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encoded}`, '_blank');
   };
 
   const shareViaEmail = () => {
     const subject = encodeURIComponent(`Property Listing: ${propertyTitle}`);
-    const body = encodeURIComponent(`${whatsappText}\n\n${url}`);
+    const body = encodeURIComponent(plainText);
     window.open(`mailto:?subject=${subject}&body=${body}`);
   };
 
@@ -121,17 +116,17 @@ export default function ShareModal({ url, whatsappText, propertyTitle, onClose }
           </button>
         </div>
 
-        {/* WhatsApp opened indicator */}
+        {/* Share guidance */}
         <div className="flex items-center gap-2.5 p-3 rounded-xl bg-[#25D366]/8 border border-[#25D366]/12 mb-5">
           <div className="w-7 h-7 rounded-lg bg-[#25D366]/15 flex items-center justify-center text-sm flex-shrink-0">
             💬
           </div>
           <div>
-            <p className="text-xs font-semibold text-[#f0f4ff]">WhatsApp opened automatically</p>
-            <p className="text-[10px] text-[#4a5470] mt-0.5">Your listing link is pre-formatted and ready to send</p>
+            <p className="text-xs font-semibold text-[#f0f4ff]">Your message is ready</p>
+            <p className="text-[10px] text-[#4a5470] mt-0.5">Choose WhatsApp to send one readable, pre-formatted message</p>
           </div>
           <div className="ml-auto">
-            <span className="text-[10px] font-bold text-[#25D366] bg-[#25D366]/10 px-2 py-0.5 rounded-full">✓</span>
+            <span className="text-[10px] font-bold text-[#25D366] bg-[#25D366]/10 px-2 py-0.5 rounded-full">READY</span>
           </div>
         </div>
 

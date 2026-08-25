@@ -40,6 +40,10 @@ You are a real estate copywriter. Based on the following raw notes and details, 
    - "Warm / Friendly" (emojis, welcoming, great for general leads)
    - "Professional / Formal" (structured, polite, great for high-end corporate clients)
    - "Investor / Fact-focused" (focus on ROI, price, size, specifications, no fluff)
+5. 3 short follow-up messages for leads who viewed but did not reply.
+6. 4 buyer qualification questions a broker should ask.
+7. 3 objection handlers for common real estate objections.
+8. 1 recommended next action for the broker.
 
 Raw notes:
 "{raw_notes}"
@@ -69,10 +73,27 @@ Return ONLY a raw JSON object matching this schema:
             "type": "Investor / Fact-focused",
             "text": "string"
         }}
-    ]
+    ],
+    "follow_up_messages": ["string", "string", "string"],
+    "qualification_questions": ["string", "string", "string", "string"],
+    "objection_handlers": [
+        {{
+            "objection": "string",
+            "reply": "string"
+        }},
+        {{
+            "objection": "string",
+            "reply": "string"
+        }},
+        {{
+            "objection": "string",
+            "reply": "string"
+        }}
+    ],
+    "recommended_next_action": "string"
 }}
 
-Ensure all fields are fully populated and text is copywriter-grade. Return only valid JSON. Do not wrap in markdown ```json ... ``` blocks or add any other text.
+Ensure all fields are fully populated and text is copywriter-grade, practical for Indian real estate brokers, and ready to paste into WhatsApp. Return only valid JSON. Do not wrap in markdown ```json ... ``` blocks or add any other text.
 """
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
         payload = {
@@ -108,6 +129,11 @@ Ensure all fields are fully populated and text is copywriter-grade. Return only 
                     all(field in parsed_data for field in required_fields)
                     and len(parsed_data.get("whatsapp_pitches", [])) >= 3
                 ):
+                    fallback = PropertyAIService._get_fallback_data(
+                        raw_notes, property_type, price, bhk, area, city
+                    )
+                    for key, value in fallback.items():
+                        parsed_data.setdefault(key, value)
                     return parsed_data
                 else:
                     logger.warning("Gemini output missing fields. Falling back.")
@@ -187,9 +213,57 @@ Ensure all fields are fully populated and text is copywriter-grade. Return only 
             },
         ]
 
+        follow_up_messages = [
+            (
+                f"Hi, just checking if the {title} matched what you are looking for. "
+                "Would you like me to share a video walkthrough?"
+            ),
+            (
+                f"This {type_str.lower()} in {area_str} is getting active enquiries. "
+                "Would you prefer a weekday or weekend site visit?"
+            ),
+            (
+                "Quick question: are you looking for self-use, rental income, or investment appreciation? "
+                "I can suggest the best-fit options accordingly."
+            ),
+        ]
+
+        qualification_questions = [
+            "What is your preferred possession timeline?",
+            "Is this for self-use, rental income, or investment?",
+            "What budget range should I stay within?",
+            "Would you like a video tour before scheduling a site visit?",
+        ]
+
+        objection_handlers = [
+            {
+                "objection": "Price feels high",
+                "reply": (
+                    "I understand. The value here is mainly the location, layout, and inventory scarcity. "
+                    "If you like the property, I can check the best negotiable number before a visit."
+                ),
+            },
+            {
+                "objection": "Need time to think",
+                "reply": (
+                    "Of course. To make comparison easier, I can send 2 similar options with price and area side by side."
+                ),
+            },
+            {
+                "objection": "Location is not perfect",
+                "reply": (
+                    "That makes sense. Tell me your preferred micro-location and commute priority, and I will shortlist closer options."
+                ),
+            },
+        ]
+
         return {
             "title": title,
             "description": description,
             "headlines": headlines,
             "whatsapp_pitches": whatsapp_pitches,
+            "follow_up_messages": follow_up_messages,
+            "qualification_questions": qualification_questions,
+            "objection_handlers": objection_handlers,
+            "recommended_next_action": "Share the warm WhatsApp pitch first, then offer a video tour or two site visit slots.",
         }

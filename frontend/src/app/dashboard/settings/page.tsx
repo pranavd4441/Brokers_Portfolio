@@ -11,6 +11,7 @@ export default function SettingsPage() {
   const [brandColor, setBrandColor] = useState('#10b981');
   const [whatsappNumber, setWhatsappNumber] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -72,6 +73,23 @@ export default function SettingsPage() {
     '#f59e0b', // Amber
   ];
 
+  const uploadLogo = async (file: File) => {
+    setUploadingLogo(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append('logo', file);
+      const result = await fetchApi<{logo_url: string}>('/auth/tenant/logo/', { method: 'POST', body: form });
+      setLogoUrl(result.logo_url);
+      updateTenantBranding({ logo_url: result.logo_url });
+      setSuccess(true);
+    } catch (err: any) {
+      setError(err.message || 'Logo upload failed.');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto pb-16">
       {/* Header */}
@@ -123,6 +141,11 @@ export default function SettingsPage() {
 
           <div>
             <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide">Brand Logo URL</label>
+            <label className="mt-2 flex cursor-pointer items-center justify-center rounded-xl border border-dashed border-emerald-500/30 bg-emerald-500/5 px-4 py-4 text-sm font-semibold text-emerald-400 hover:bg-emerald-500/10">
+              {uploadingLogo ? 'Uploading…' : 'Upload logo from phone'}
+              <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" disabled={uploadingLogo} onChange={(e)=>{const file=e.target.files?.[0]; if(file) uploadLogo(file);}} />
+            </label>
+            <div className="my-2 text-center text-[10px] uppercase tracking-widest text-slate-600">or use a URL</div>
             <input
               type="text"
               value={logoUrl}

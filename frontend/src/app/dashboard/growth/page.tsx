@@ -1,0 +1,16 @@
+'use client';
+import { useState } from 'react';
+import { toast } from 'sonner';
+import { useAuthStore } from '@/store/useAuthStore';
+
+export default function GrowthPage(){
+  const {user}=useAuthStore();
+  const [billing,setBilling]=useState<'monthly'|'annual'>('monthly');
+  const referral=typeof window!=='undefined'&&user?.tenant?.referral_code?`${window.location.origin}/auth/signup?source=referral&ref=${user.tenant.referral_code}`:'';
+  const support=process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP||'919876543210';
+  const copy=async()=>{await navigator.clipboard.writeText(referral);toast.success('Referral link copied');};
+  return <div className="mx-auto max-w-4xl pb-16"><p className="text-[10px] font-black tracking-[.2em] text-[#16c784]">FOUNDING BROKER PROGRAM</p><h1 className="mt-2 text-3xl font-black text-white">Plan and referrals</h1><p className="mt-2 text-sm text-[#8993a8]">Your founding price is protected for 12 months from signup.</p>
+    <div className="mt-7 grid gap-5 md:grid-cols-[1.1fr_.9fr]"><section className="rounded-2xl border border-[#16c784]/25 bg-[#16c784]/[.05] p-6"><div className="flex justify-between"><div><p className="text-xs font-bold text-[#58e6aa]">INDEPENDENT</p><p className="mt-3 text-4xl font-black text-white">{billing==='monthly'?'₹499':'₹4,999'}<span className="text-xs font-medium text-[#8993a8]"> / {billing==='monthly'?'month':'year'}</span></p></div><div className="flex h-9 rounded-lg border border-white/10 p-1 text-[10px]"><button onClick={()=>setBilling('monthly')} className={`rounded px-2 ${billing==='monthly'?'bg-white/10 text-white':'text-[#667087]'}`}>MONTHLY</button><button onClick={()=>setBilling('annual')} className={`rounded px-2 ${billing==='annual'?'bg-white/10 text-white':'text-[#667087]'}`}>ANNUAL</button></div></div><ul className="mt-6 space-y-2 text-sm text-[#c7cfdd]"><li>✓ 100 active listings</li><li>✓ Leads and buyer engagement analytics</li><li>✓ AI copy, brochure and branding</li><li>✓ English, Hindi and Marathi support</li></ul><a href={`https://wa.me/${support}?text=${encodeURIComponent(`Hi, I want to activate the PropertyOS Independent ${billing} plan.`)}`} className="mt-7 block rounded-xl bg-[#16c784] p-3 text-center text-sm font-black text-[#07130e]">Activate with assisted payment</a><p className="mt-3 text-center text-[10px] text-[#667087]">Payment collection remains assisted during the founding pilot.</p></section>
+    <section className="rounded-2xl border border-white/[.07] bg-white/[.025] p-6"><p className="text-xs font-bold text-[#7dd3fc]">3 BROKER CIRCLE</p><h2 className="mt-3 text-xl font-black text-white">Earn one free month.</h2><p className="mt-2 text-sm leading-6 text-[#8993a8]">Introduce three brokers. Your reward unlocks after one referral becomes a paying customer.</p><div className="mt-5 rounded-xl border border-white/[.07] bg-black/20 p-3 text-xs text-[#8993a8] break-all">{referral||'Your referral link is loading…'}</div><button onClick={copy} disabled={!referral} className="mt-3 w-full rounded-xl border border-white/10 p-3 text-sm font-bold text-white disabled:opacity-40">Copy referral link</button><p className="mt-4 text-xs text-[#667087]">Your code: <b className="text-white">{user?.tenant?.referral_code||'—'}</b></p></section></div>
+  </div>;
+}

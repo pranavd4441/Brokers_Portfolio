@@ -1,262 +1,71 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { getApiUrl, fetchApi } from '@/lib/api';
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import {
+  ArrowRight, BadgeCheck, BedDouble, Building2, CalendarCheck,
+  Camera, Check, ChevronLeft, ChevronRight, Expand, Home, MapPin,
+  Maximize2, MessageCircle, Phone, Ruler, Share2, ShieldCheck, Sparkles, X,
+} from 'lucide-react';
+import { fetchApi, getApiUrl } from '@/lib/api';
 import { PublicProperty } from './page';
 
-// ─── Helpers ────────────────────────────────────────────────────
-function formatPrice(price: number): { main: string; sub: string } {
-  if (price >= 10_000_000) {
-    const val = price / 10_000_000;
-    return { main: `₹${val.toFixed(2)}`, sub: 'Crore' };
-  }
-  if (price >= 100_000) {
-    const val = price / 100_000;
-    return { main: `₹${val.toFixed(2)}`, sub: 'Lakh' };
-  }
-  return { main: `₹${price.toLocaleString()}`, sub: '' };
+function formatPrice(price: number) {
+  if (price >= 10_000_000) return { main: `₹${(price / 10_000_000).toFixed(2)}`, unit: 'Crore' };
+  if (price >= 100_000) return { main: `₹${(price / 100_000).toFixed(2)}`, unit: 'Lakh' };
+  return { main: `₹${price.toLocaleString('en-IN')}`, unit: '' };
 }
 
-const AMENITY_ICONS: Record<string, { icon: string; label: string }> = {
-  gym:          { icon: '🏋️', label: 'Gym' },
-  pool:         { icon: '🏊', label: 'Swimming Pool' },
-  parking:      { icon: '🚗', label: 'Car Parking' },
-  security:     { icon: '🔒', label: '24/7 Security' },
-  clubhouse:    { icon: '🏛️', label: 'Club House' },
-  garden:       { icon: '🌳', label: 'Garden' },
-  lift:         { icon: '🛗', label: 'Elevator' },
-  power_backup: { icon: '⚡', label: 'Power Backup' },
-  wifi:         { icon: '📶', label: 'High-Speed WiFi' },
-  cctv:         { icon: '📷', label: 'CCTV' },
-  intercom:     { icon: '📟', label: 'Intercom' },
-  fire_safety:  { icon: '🔥', label: 'Fire Safety' },
+function pretty(value: string) {
+  return value.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, char => char.toUpperCase());
+}
+
+const AMENITY_LABELS: Record<string, string> = {
+  gym: 'Fitness centre', pool: 'Swimming pool', parking: 'Car parking', security: '24/7 security',
+  clubhouse: 'Club house', garden: 'Landscaped garden', lift: 'Elevator', power_backup: 'Power backup',
+  wifi: 'High-speed Wi-Fi', cctv: 'CCTV surveillance', intercom: 'Intercom', fire_safety: 'Fire safety',
 };
 
-// ─── Gallery ─────────────────────────────────────────────────────
 function Gallery({ images, title }: { images: PublicProperty['images']; title: string }) {
   const [active, setActive] = useState(0);
-  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [open, setOpen] = useState(false);
   const [touchStart, setTouchStart] = useState<number | null>(null);
-
-  const prev = () => setActive(i => (i - 1 + images.length) % images.length);
-  const next = () => setActive(i => (i + 1) % images.length);
+  const prev = useCallback(() => setActive(index => (index - 1 + images.length) % images.length), [images.length]);
+  const next = useCallback(() => setActive(index => (index + 1) % images.length), [images.length]);
 
   useEffect(() => {
-    if (!lightboxOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') prev();
-      if (e.key === 'ArrowRight') next();
-      if (e.key === 'Escape') setLightboxOpen(false);
+    if (!open) return;
+    const listener = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowLeft') prev();
+      if (event.key === 'ArrowRight') next();
+      if (event.key === 'Escape') setOpen(false);
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [lightboxOpen]);
+    window.addEventListener('keydown', listener);
+    return () => window.removeEventListener('keydown', listener);
+  }, [open, next, prev]);
 
-  if (images.length === 0) {
-    return (
-      <div className="w-full h-64 md:h-[480px] bg-[#0d1117] rounded-2xl flex flex-col items-center justify-center gap-3 text-[#4a5470]">
-        <span className="text-5xl opacity-30">🏢</span>
-        <span className="text-sm">No photos available</span>
-      </div>
-    );
+  if (!images.length) {
+    return <div className="grid min-h-[380px] place-items-center rounded-[28px] bg-[#dfe4da] text-[#66736d]"><div className="text-center"><Building2 className="mx-auto opacity-40" size={44}/><p className="mt-3 text-sm font-bold">Photos will be added shortly</p></div></div>;
   }
 
-  return (
-    <>
-      {/* ── Main gallery ── */}
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_200px] lg:grid-cols-[1fr_240px] gap-2">
-        {/* Hero image */}
-        <div
-          className="relative h-64 md:h-[420px] rounded-2xl overflow-hidden cursor-pointer bg-[#0d1117] group"
-          onClick={() => setLightboxOpen(true)}
-          onTouchStart={e => setTouchStart(e.touches[0].clientX)}
-          onTouchEnd={e => {
-            if (touchStart === null) return;
-            const diff = touchStart - e.changedTouches[0].clientX;
-            if (Math.abs(diff) > 50) diff > 0 ? next() : prev();
-            setTouchStart(null);
-          }}
-        >
-          <img
-            src={images[active].url}
-            alt={`${title} — Photo ${active + 1}`}
-            className="w-full h-full object-cover transition-transform duration-500"
-          />
-          {/* Gradient overlays */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
-          
-          {/* Nav arrows */}
-          {images.length > 1 && (
-            <>
-              <button
-                onClick={e => { e.stopPropagation(); prev(); }}
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-xl bg-black/50 backdrop-blur-sm text-white flex items-center justify-center text-sm hover:bg-black/70 transition-all opacity-0 group-hover:opacity-100"
-              >
-                ‹
-              </button>
-              <button
-                onClick={e => { e.stopPropagation(); next(); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-xl bg-black/50 backdrop-blur-sm text-white flex items-center justify-center text-sm hover:bg-black/70 transition-all opacity-0 group-hover:opacity-100"
-              >
-                ›
-              </button>
-            </>
-          )}
-          
-          {/* Counter */}
-          <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-sm text-white text-xs font-medium px-2.5 py-1 rounded-lg">
-            {active + 1} / {images.length}
-          </div>
-
-          {/* Expand hint */}
-          <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm text-white text-[10px] font-medium px-2.5 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
-            ⊕ View all
-          </div>
-        </div>
-
-        {/* Thumbnail column — desktop only */}
-        {images.length > 1 && (
-          <div className="hidden md:flex flex-col gap-2 max-h-[420px] overflow-y-auto no-scrollbar">
-            {images.map((img, idx) => (
-              <button
-                key={img.id}
-                onClick={() => setActive(idx)}
-                className={`relative flex-shrink-0 h-[calc(420px/4-6px)] rounded-xl overflow-hidden transition-all ${
-                  active === idx ? 'ring-2 ring-[#16c784] ring-offset-2 ring-offset-[#07090f]' : 'opacity-60 hover:opacity-90'
-                }`}
-              >
-                <img src={img.thumbnail_url} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ── Mobile dot indicators ── */}
-      {images.length > 1 && (
-        <div className="flex md:hidden justify-center gap-1.5 mt-3">
-          {images.map((_, idx) => (
-            <button
-              key={idx}
-              onClick={() => setActive(idx)}
-              className={`rounded-full transition-all ${active === idx ? 'w-4 h-1.5 bg-[#16c784]' : 'w-1.5 h-1.5 bg-[rgba(255,255,255,0.2)]'}`}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* ── Lightbox ── */}
-      {lightboxOpen && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-sm"
-          onClick={() => setLightboxOpen(false)}
-        >
-          <div className="relative max-w-5xl w-full px-4" onClick={e => e.stopPropagation()}>
-            <img
-              src={images[active].url}
-              alt={`${title} — Photo ${active + 1}`}
-              className="w-full max-h-[85vh] object-contain rounded-xl"
-            />
-            <button
-              onClick={() => setLightboxOpen(false)}
-              className="absolute top-2 right-6 w-9 h-9 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white text-sm transition-all"
-            >
-              ✕
-            </button>
-            {images.length > 1 && (
-              <>
-                <button
-                  onClick={prev}
-                  className="absolute left-6 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white text-lg transition-all"
-                >‹</button>
-                <button
-                  onClick={next}
-                  className="absolute right-6 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white text-lg transition-all"
-                >›</button>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-// ─── Sticky CTA Bar ──────────────────────────────────────────────
-function StickyCtaBar({
-  phone,
-  whatsapp,
-  price,
-  propertyTitle,
-  brandColor,
-  onWhatsApp,
-  onCall,
-  disabled = false,
-}: {
-  phone: string;
-  whatsapp: string;
-  price: number;
-  propertyTitle: string;
-  brandColor: string;
-  onWhatsApp: () => void;
-  onCall: () => void;
-  disabled?: boolean;
-}) {
-  const [visible, setVisible] = useState(false);
-  const formatted = formatPrice(price);
-
-  useEffect(() => {
-    const onScroll = () => setVisible(window.scrollY > 400);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
-
-  return (
-    <div
-      className={`fixed bottom-0 left-0 right-0 z-50 transition-all duration-300 ${
-        visible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'
-      }`}
-    >
-      <div className="bg-[#0a0c14]/95 backdrop-blur-xl border-t border-[rgba(255,255,255,0.06)] px-4 py-3 pb-safe">
-        <div className="max-w-4xl mx-auto flex items-center gap-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] text-[#4a5470] font-medium">Price</p>
-            <p className="text-base font-bold text-[#f0f4ff] leading-tight">
-              {formatted.main} <span className="text-sm text-[#8892aa]">{formatted.sub}</span>
-            </p>
-          </div>
-          {disabled ? (
-            <div className="flex-1 text-center py-2.5 px-4 text-[11px] font-bold text-[#f43f5e] bg-[#f43f5e]/10 border border-[#f43f5e]/20 rounded-xl whitespace-nowrap truncate">
-              ⚠️ Listing Inactive (Off-Market)
-            </div>
-          ) : (
-            <>
-              <button
-                id="cta-call-btn"
-                onClick={onCall}
-                className="flex items-center justify-center gap-2 h-11 px-4 rounded-xl border border-[rgba(255,255,255,0.1)] bg-[rgba(255,255,255,0.05)] text-[#f0f4ff] text-sm font-semibold hover:bg-[rgba(255,255,255,0.08)] transition-all cursor-pointer flex-shrink-0"
-              >
-                <span>📞</span>
-                <span className="hidden sm:block">Call</span>
-              </button>
-              <button
-                id="cta-whatsapp-btn"
-                onClick={onWhatsApp}
-                className="flex items-center justify-center gap-2 h-11 px-5 rounded-xl text-sm font-bold text-[#07090f] hover:opacity-90 active:scale-95 transition-all cursor-pointer flex-shrink-0"
-                style={{ background: brandColor }}
-              >
-                <span>💬</span>
-                <span>WhatsApp</span>
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+  return <>
+    <div className={`grid gap-2 ${images.length > 1 ? 'md:grid-cols-[minmax(0,1fr)_220px]' : ''}`}>
+      <button type="button" onClick={() => setOpen(true)} onTouchStart={event=>setTouchStart(event.touches[0].clientX)} onTouchEnd={event=>{if(touchStart===null)return;const diff=touchStart-event.changedTouches[0].clientX;if(Math.abs(diff)>50)(diff>0?next:prev)();setTouchStart(null);}} className="group relative h-[330px] overflow-hidden rounded-[28px] bg-[#dfe4da] text-left sm:h-[470px]">
+        <img src={images[active].url} alt={`${title}, photograph ${active + 1}`} className="h-full w-full object-cover transition duration-700 group-hover:scale-[1.025]"/>
+        <span className="absolute inset-0 bg-gradient-to-t from-[#10221c]/45 via-transparent to-transparent"/>
+        <span className="absolute bottom-4 left-4 flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 text-xs font-black text-[#10221c] shadow-lg"><Expand size={14}/>View gallery</span>
+        <span className="absolute bottom-4 right-4 flex items-center gap-1.5 rounded-full bg-[#10221c]/85 px-3 py-2 text-xs font-bold text-white"><Camera size={14}/>{active + 1} / {images.length}</span>
+      </button>
+      {images.length > 1 && <div className="hidden gap-2 md:grid md:grid-rows-3">
+        {images.slice(1,4).map((image,index)=><button type="button" key={image.id} onClick={()=>{setActive(index+1);setOpen(true);}} className="relative overflow-hidden rounded-[20px] bg-[#dfe4da]"><img src={image.thumbnail_url || image.url} alt={`${title}, photograph ${index+2}`} className="h-full w-full object-cover transition hover:scale-105"/>{index===2 && images.length>4 && <span className="absolute inset-0 grid place-items-center bg-[#10221c]/65 text-sm font-black text-white">+{images.length-4} photos</span>}</button>)}
+      </div>}
     </div>
-  );
+    {images.length>1 && <div className="mt-3 flex justify-center gap-1.5 md:hidden">{images.map((_,index)=><button key={index} aria-label={`Show photo ${index+1}`} onClick={()=>setActive(index)} className={`h-1.5 rounded-full transition-all ${index===active?'w-6 bg-[#10221c]':'w-1.5 bg-[#10221c]/20'}`}/>)}</div>}
+    {open && <div className="fixed inset-0 z-[120] grid place-items-center bg-[#07110e]/95 p-3 backdrop-blur-md" onClick={()=>setOpen(false)}><button aria-label="Close gallery" className="absolute right-5 top-5 grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white" onClick={()=>setOpen(false)}><X size={18}/></button><div className="relative w-full max-w-6xl" onClick={event=>event.stopPropagation()}><img src={images[active].url} alt={`${title}, photograph ${active+1}`} className="mx-auto max-h-[86vh] w-full rounded-2xl object-contain"/>{images.length>1&&<><button aria-label="Previous photo" onClick={prev} className="absolute left-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/50 text-white"><ChevronLeft/></button><button aria-label="Next photo" onClick={next} className="absolute right-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/50 text-white"><ChevronRight/></button></>}</div></div>}
+  </>;
 }
 
-// ─── Main Client Component ───────────────────────────────────────
+// Server rendering is preferred for link previews. If the backend is briefly
+// unavailable during SSR, retry from the browser so valid shared links recover.
 export default function PublicPropertyClient({
   property: initialProperty,
   slug,
@@ -266,7 +75,7 @@ export default function PublicPropertyClient({
 }) {
   const [propertyData, setPropertyData] = useState<PublicProperty | null>(initialProperty);
   const [loading, setLoading] = useState(!initialProperty);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (propertyData) return;
@@ -276,10 +85,9 @@ export default function PublicPropertyClient({
       try {
         setLoading(true);
         const data = await fetchApi(`/sharing/public/${slug}/`);
-        
         const prop = data.property ?? data;
         const branding = data.branding ?? {};
-        
+
         const flattened: PublicProperty = {
           id: prop.id,
           slug: prop.slug ?? slug,
@@ -311,572 +119,144 @@ export default function PublicPropertyClient({
 
         if (active) {
           setPropertyData(flattened);
-          setError(null);
+          setLoadError(null);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (active) {
-          setError(err.message || 'This listing link is invalid or has been removed.');
+          setLoadError(err instanceof Error ? err.message : 'This listing link is invalid or has been removed.');
         }
       } finally {
-        if (active) {
-          setLoading(false);
-        }
+        if (active) setLoading(false);
       }
     };
 
     loadProperty();
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [slug, propertyData]);
 
-  // Ensure all media/avatar/logo URLs are absolute URLs pointing to the backend
-  const getAbsoluteUrl = (url: string | null | undefined) => {
-    if (!url) return '';
-    // Translate legacy Supabase S3 endpoints to public CDN paths on-the-fly
+  if (loading) {
+    return <div className="grid min-h-screen place-items-center bg-[#f4f4ed] text-[#10221c]"><div className="text-center"><div className="mx-auto h-11 w-11 animate-spin rounded-full border-4 border-[#10221c]/10 border-t-[#10221c]"/><p className="mt-4 text-sm font-bold">Preparing property presentation…</p></div></div>;
+  }
+
+  if (loadError || !propertyData) {
+    return <div className="grid min-h-screen place-items-center bg-[#f4f4ed] px-6 text-center text-[#10221c]"><div><Building2 className="mx-auto text-[#718078]" size={48}/><h1 className="mt-5 text-2xl font-black">Listing unavailable</h1><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#64736c]">{loadError || 'This listing link is invalid or has been removed.'}</p><a href="/" className="mt-6 inline-flex rounded-xl bg-[#10221c] px-5 py-3 text-sm font-black text-[#b7f34b]">Visit PropertyOS</a></div></div>;
+  }
+
+  return <ListingExperience property={propertyData}/>;
+}
+
+function ListingExperience({ property: initialProperty }: { property: PublicProperty }) {
+  const absoluteUrl = (candidate?: string | null) => {
+    if (!candidate) return '';
+    let url = candidate;
     if (url.includes('storage.supabase.co/storage/v1/s3/')) {
       url = url.replace('storage.supabase.co/storage/v1/s3', 'supabase.co/storage/v1/object/public');
     }
+    if (/^https?:\/\//i.test(url) || url.startsWith('data:')) return url;
+    const apiUrl = getApiUrl();
+    const backendOrigin = apiUrl.startsWith('http') ? apiUrl.replace(/\/api$/, '') : window.location.origin.replace('-frontend','-backend');
+    if (url.startsWith('/media/') || url.startsWith('/static/')) return `${backendOrigin}${url}`;
     const mediaIndex = url.indexOf('/media/');
-    if (mediaIndex !== -1) {
-      const mediaPath = url.substring(mediaIndex);
-      const apiUrl = getApiUrl();
-      const backendOrigin = apiUrl.startsWith('http')
-        ? apiUrl.replace(/\/api$/, '')
-        : window.location.origin.replace('-frontend', '-backend');
-      return `${backendOrigin}${mediaPath}`;
-    }
-    return url;
+    return mediaIndex >= 0 ? `${backendOrigin}${url.substring(mediaIndex)}` : url;
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#07090f] flex flex-col items-center justify-center gap-4 text-[#f0f4ff]">
-        <div className="w-12 h-12 border-4 border-[#16c784]/20 border-t-[#16c784] rounded-full animate-spin" />
-        <p className="text-sm font-semibold tracking-wide text-slate-400">Loading premium listing...</p>
-      </div>
-    );
-  }
-
-  if (error || !propertyData) {
-    return (
-      <div className="min-h-screen bg-[#07090f] flex flex-col items-center justify-center px-6 text-center text-[#f0f4ff]">
-        <div className="w-20 h-20 rounded-3xl bg-[#111622] border border-[rgba(255,255,255,0.06)] flex items-center justify-center text-4xl mb-6 select-none">
-          🏚️
-        </div>
-        <h1 className="text-xl font-bold tracking-tight text-white mb-2">Listing Not Found</h1>
-        <p className="text-sm text-slate-400 max-w-sm mb-8 leading-relaxed">
-          {error || 'This listing link is invalid or has been removed.'}
-        </p>
-        <a
-          href="/"
-          className="os-btn-primary text-sm px-6 py-2.5 rounded-xl font-semibold bg-[#16c784] text-[#07090f] hover:bg-[#12a36c] transition-all"
-        >
-          Go to Homepage
-        </a>
-      </div>
-    );
-  }
 
   const property = {
-    ...propertyData,
-    images: (propertyData.images ?? []).map(img => ({
-      ...img,
-      url: getAbsoluteUrl(img.url),
-      thumbnail_url: getAbsoluteUrl(img.thumbnail_url),
-    })),
-    brand_logo_url: getAbsoluteUrl(propertyData.brand_logo_url),
-    broker: {
-      ...propertyData.broker,
-      avatar_url: getAbsoluteUrl(propertyData.broker.avatar_url),
-    },
+    ...initialProperty,
+    images: (initialProperty.images ?? []).map(image=>({...image,url:absoluteUrl(image.url),thumbnail_url:absoluteUrl(image.thumbnail_url)})),
+    brand_logo_url: absoluteUrl(initialProperty.brand_logo_url),
+    broker: {...initialProperty.broker, avatar_url:absoluteUrl(initialProperty.broker.avatar_url)},
   };
+  const brandColor = property.brand_color || '#b7f34b';
+  const price = formatPrice(property.price);
+  const inactive = property.status === 'EXPIRED';
+  const [modalOpen,setModalOpen] = useState(false);
+  const [pending,setPending] = useState<'whatsapp'|'call'>('whatsapp');
+  const [name,setName] = useState('');
+  const [phone,setPhone] = useState('');
+  const [error,setError] = useState('');
 
-  const brandColor = property.brand_color ?? '#16c784';
-  const formatted = formatPrice(property.price);
+  useEffect(()=>{
+    setName(localStorage.getItem('buyer_name') || '');
+    setPhone(localStorage.getItem('buyer_phone') || '');
+    fetch(`${getApiUrl()}/analytics/log/`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({property:property.id,share_slug:property.slug,event_type:'PAGE_VIEW'})}).catch(()=>{});
+  },[property.id,property.slug]);
 
-  const typeLabel = property.bhk
-    ? `${property.bhk} BHK ${property.property_type}`
-    : property.property_type.replace('_', ' ');
+  const execute = useCallback((action:'whatsapp'|'call',buyerName:string,buyerPhone:string)=>{
+    const eventType = action==='whatsapp'?'WHATSAPP_CLICK':'PHONE_CLICK';
+    fetch(`${getApiUrl()}/analytics/log/`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({property:property.id,share_slug:property.slug,event_type:eventType,buyer_name:buyerName,buyer_phone:buyerPhone})}).catch(()=>{});
+    if(action==='whatsapp'){
+      const destination=property.broker.whatsapp.replace(/\D/g,'');
+      const message=encodeURIComponent(`Hi ${property.broker.name}, I am interested in ${property.title}.\n${window.location.href}`);
+      window.open(`https://wa.me/${destination}?text=${message}`,'_blank');
+    } else window.location.href=`tel:${property.broker.phone}`;
+  },[property]);
 
-  // Log view analytics (fire-and-forget)
-  useEffect(() => {
-    fetch(`${getApiUrl()}/analytics/log/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ property: property.id, event_type: 'PAGE_VIEW' }),
-    }).catch(() => {});
-  }, [property.id]);
-
-  // State for gated lead modal
-  const [showGatedModal, setShowGatedModal] = useState(false);
-  const [pendingAction, setPendingAction] = useState<'whatsapp' | 'call' | null>(null);
-  const [modalName, setModalName] = useState('');
-  const [modalPhone, setModalPhone] = useState('');
-  const [modalError, setModalError] = useState('');
-
-  // Initialize modal values from localStorage on mount (client-only safety)
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setModalName(localStorage.getItem('buyer_name') || '');
-      setModalPhone(localStorage.getItem('buyer_phone') || '');
-    }
-  }, []);
-
-  // Function to execute the action after identification
-  const executeAction = useCallback((action: 'whatsapp' | 'call', name: string, phone: string) => {
-    if (action === 'whatsapp') {
-      const siteUrl = window.location.origin;
-      const shareUrl = `${siteUrl}/p/${property.slug}`;
-      const text = encodeURIComponent(`Hi! I'm interested in: ${property.title}\n${shareUrl}`);
-      const cleanedPhone = property.broker.whatsapp.replace(/\D/g, '');
-      window.open(`https://wa.me/${cleanedPhone}?text=${text}`, '_blank');
-      
-      // Log click with buyer details
-      fetch(`${getApiUrl()}/analytics/log/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          property: property.id,
-          event_type: 'WHATSAPP_CLICK',
-          buyer_name: name,
-          buyer_phone: phone
-        }),
-      }).catch(() => {});
-    } else if (action === 'call') {
-      window.location.href = `tel:${property.broker.phone}`;
-      
-      // Log click with buyer details
-      fetch(`${getApiUrl()}/analytics/log/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          property: property.id,
-          event_type: 'PHONE_CLICK',
-          buyer_name: name,
-          buyer_phone: phone
-        }),
-      }).catch(() => {});
-    }
-  }, [property]);
-
-  // Unified click handlers
-  const handleWhatsAppClick = useCallback(() => {
-    const savedName = localStorage.getItem('buyer_name');
-    const savedPhone = localStorage.getItem('buyer_phone');
-
-    if (savedName && savedPhone) {
-      executeAction('whatsapp', savedName, savedPhone);
-    } else {
-      setPendingAction('whatsapp');
-      setShowGatedModal(true);
-    }
-  }, [executeAction]);
-
-  const handleCallClick = useCallback(() => {
-    const savedName = localStorage.getItem('buyer_name');
-    const savedPhone = localStorage.getItem('buyer_phone');
-
-    if (savedName && savedPhone) {
-      executeAction('call', savedName, savedPhone);
-    } else {
-      setPendingAction('call');
-      setShowGatedModal(true);
-    }
-  }, [executeAction]);
-
-  const handleModalSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!modalName.trim()) {
-      setModalError('Please enter your name');
-      return;
-    }
-    if (!modalPhone.trim()) {
-      setModalError('Please enter your phone number');
-      return;
-    }
-    
-    // Save to localStorage
-    localStorage.setItem('buyer_name', modalName.trim());
-    localStorage.setItem('buyer_phone', modalPhone.trim());
-    
-    // Execute pending action
-    if (pendingAction) {
-      executeAction(pendingAction, modalName.trim(), modalPhone.trim());
-    }
-    
-    // Reset state
-    setShowGatedModal(false);
-    setPendingAction(null);
-    setModalError('');
+  const requestContact = (action:'whatsapp'|'call') => {
+    if(inactive) return;
+    const savedName=localStorage.getItem('buyer_name');
+    const savedPhone=localStorage.getItem('buyer_phone');
+    if(savedName&&savedPhone) execute(action,savedName,savedPhone);
+    else {setPending(action);setModalOpen(true);}
   };
+  const submitContact = (event:FormEvent) => {
+    event.preventDefault();
+    if(!name.trim()||!phone.trim()){setError('Please enter your name and phone number.');return;}
+    localStorage.setItem('buyer_name',name.trim());localStorage.setItem('buyer_phone',phone.trim());
+    setModalOpen(false);setError('');execute(pending,name.trim(),phone.trim());
+  };
+  const share = async () => {
+    if(navigator.share) await navigator.share({title:property.title,text:`${property.title} in ${property.area}, ${property.city}`,url:window.location.href});
+    else {await navigator.clipboard.writeText(window.location.href);}
+  };
+  const specItems = [
+    property.bhk ? {icon:<BedDouble/>,value:`${property.bhk} BHK`,label:'Configuration'} : null,
+    property.square_feet ? {icon:<Ruler/>,value:Number(property.square_feet).toLocaleString('en-IN'),label:'Square feet'} : null,
+    {icon:<Home/>,value:pretty(property.property_type),label:'Property type'},
+    {icon:<MapPin/>,value:property.area,label:property.city},
+  ].filter(Boolean) as {icon:ReactNode;value:string;label:string}[];
 
-  return (
-    <>
-      {/* ── Global styles for this page ── */}
-      <style>{`
-        :root { --brand: ${brandColor}; }
-        .brand-text { color: ${brandColor}; }
-        .brand-bg { background: ${brandColor}; }
-        .brand-border { border-color: ${brandColor}; }
-      `}</style>
-
-      <div className="min-h-screen bg-[#07090f] pb-28">
-        {/* ── Topbar ── */}
-        <header className="sticky top-0 z-40 bg-[#07090f]/90 backdrop-blur-xl border-b border-[rgba(255,255,255,0.05)]">
-          <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
-            {/* Brand */}
-            <div className="flex items-center gap-2.5">
-              {property.brand_logo_url ? (
-                <img src={property.brand_logo_url} alt="Agency logo" className="h-7 w-auto object-contain" />
-              ) : (
-                <div
-                  className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold text-[#07090f]"
-                  style={{ background: brandColor }}
-                >
-                  {property.broker.name[0]?.toUpperCase()}
-                </div>
-              )}
-              <span className="text-sm font-semibold text-[#f0f4ff] hidden sm:block truncate">
-                {property.agency_name ?? property.broker.agency_name ?? 'PropertyOS'}
-              </span>
-            </div>
-
-            {/* Share button */}
-            <button
-              onClick={() => {
-                const siteUrl = window.location.origin;
-                const shareUrl = `${siteUrl}/p/${property.slug}`;
-                if (navigator.share) {
-                  navigator.share({ title: property.title, url: shareUrl });
-                } else {
-                  navigator.clipboard.writeText(shareUrl);
-                }
-              }}
-              className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)] text-[#8892aa] hover:text-[#f0f4ff] text-xs font-medium transition-all"
-            >
-              <span>⬆</span>
-              <span className="hidden sm:block">Share</span>
-            </button>
-          </div>
-        </header>
-
-        {/* ── Main content ── */}
-        <main className="max-w-4xl mx-auto px-4 pt-6 pb-12">
-          {property.status === 'EXPIRED' && (
-            <div className="mb-6 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-3 text-rose-400 select-none">
-              <span className="text-xl">⚠️</span>
-              <div>
-                <h4 className="text-sm font-bold">Listing Inactive</h4>
-                <p className="text-xs text-[#8892aa] mt-0.5 leading-relaxed">
-                  This property listing has expired or has been delisted by the broker. Inquiries are currently suspended.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Gallery */}
-          <Gallery images={property.images} title={property.title} />
-
-          {/* ── Two-column layout ── */}
-          <div className="mt-6 grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8">
-            {/* ── Left: property info ── */}
-            <div className="space-y-8">
-              {/* Title block */}
-              <div>
-                <div className="flex items-center gap-2 flex-wrap mb-3">
-                  <span
-                    className="text-[10px] font-bold px-2.5 py-1 rounded-lg uppercase tracking-wider"
-                    style={{ background: `${brandColor}20`, color: brandColor }}
-                  >
-                    {property.status.replace('_', ' ')}
-                  </span>
-                  <span className="text-[10px] font-medium text-[#4a5470] px-2.5 py-1 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)]">
-                    {typeLabel}
-                  </span>
-                </div>
-
-                <h1 className="text-xl md:text-2xl font-bold text-[#f0f4ff] leading-snug">
-                  {property.title}
-                </h1>
-
-                <div className="flex items-center gap-1.5 mt-2">
-                  <span className="text-sm">📍</span>
-                  <span className="text-sm text-[#8892aa]">{property.area}, {property.city}</span>
-                  {property.address && (
-                    <span className="text-[#4a5470]">• {property.address}</span>
-                  )}
-                </div>
-
-                {/* Price */}
-                <div className="mt-4 flex items-baseline gap-2">
-                  <span className="text-3xl md:text-4xl font-bold tracking-tight" style={{ color: brandColor }}>
-                    {formatted.main}
-                  </span>
-                  {formatted.sub && (
-                    <span className="text-lg text-[#8892aa] font-medium">{formatted.sub}</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Key specs */}
-              {(property.bhk || property.square_feet) && (
-                <div className="grid grid-cols-3 gap-3">
-                  {property.bhk && (
-                    <div className="os-card p-4 text-center">
-                      <div className="text-xl mb-1">🛏</div>
-                      <div className="text-base font-bold text-[#f0f4ff]">{property.bhk} BHK</div>
-                      <div className="text-[10px] text-[#4a5470] mt-0.5">Bedrooms</div>
-                    </div>
-                  )}
-                  {property.square_feet && (
-                    <div className="os-card p-4 text-center">
-                      <div className="text-xl mb-1">📐</div>
-                      <div className="text-base font-bold text-[#f0f4ff]">{property.square_feet.toLocaleString()}</div>
-                      <div className="text-[10px] text-[#4a5470] mt-0.5">Sq. ft.</div>
-                    </div>
-                  )}
-                  <div className="os-card p-4 text-center">
-                    <div className="text-xl mb-1">🏠</div>
-                    <div className="text-sm font-bold text-[#f0f4ff] capitalize">
-                      {property.property_type.replace('_', ' ')}
-                    </div>
-                    <div className="text-[10px] text-[#4a5470] mt-0.5">Type</div>
-                  </div>
-                </div>
-              )}
-
-              {/* Description */}
-              <div>
-                <h2 className="text-sm font-bold text-[#f0f4ff] mb-3">About this property</h2>
-                <p className="text-sm text-[#8892aa] leading-relaxed whitespace-pre-line">
-                  {property.description}
-                </p>
-              </div>
-
-              {/* Amenities */}
-              {property.amenities.length > 0 && (
-                <div>
-                  <h2 className="text-sm font-bold text-[#f0f4ff] mb-3">Amenities</h2>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {property.amenities.map(id => {
-                      const a = AMENITY_ICONS[id];
-                      if (!a) return null;
-                      return (
-                        <div
-                          key={id}
-                          className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-xs text-[#8892aa]"
-                        >
-                          <span className="text-sm">{a.icon}</span>
-                          <span>{a.label}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Location detail */}
-              <div>
-                <h2 className="text-sm font-bold text-[#f0f4ff] mb-3">Location</h2>
-                <div className="h-48 rounded-2xl bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] flex flex-col items-center justify-center gap-2 text-[#4a5470]">
-                  <span className="text-4xl opacity-30">🗺️</span>
-                  <div className="text-center">
-                    <p className="text-sm text-[#8892aa] font-medium">{property.area}, {property.city}</p>
-                    {property.address && <p className="text-xs text-[#4a5470] mt-0.5">{property.address}</p>}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* ── Right: broker card ── */}
-            <div className="space-y-4">
-              {/* Sticky broker card (desktop) */}
-              <div className="lg:sticky lg:top-20 space-y-4">
-                <div className="os-card p-5">
-                  <p className="text-xs text-[#4a5470] font-medium mb-4 uppercase tracking-wider">Listed by</p>
-
-                  {/* Broker info */}
-                  <div className="flex items-center gap-3 mb-5">
-                    <div
-                      className="w-11 h-11 rounded-xl flex items-center justify-center text-base font-bold text-[#07090f] flex-shrink-0"
-                      style={{ background: brandColor }}
-                    >
-                      {property.broker.avatar_url
-                        ? <img src={property.broker.avatar_url} alt="Broker" className="w-full h-full object-cover rounded-xl" />
-                        : property.broker.name[0]?.toUpperCase()
-                      }
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <p className="text-sm font-semibold text-[#f0f4ff] truncate">{property.broker.name}</p>
-                        {property.broker.verified && (
-                          <span title="Verified Broker" className="text-[#16c784] text-xs">✓</span>
-                        )}
-                      </div>
-                      {property.broker.agency_name && (
-                        <p className="text-xs text-[#4a5470] truncate">{property.broker.agency_name}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* CTA buttons */}
-                  <div className="space-y-2.5">
-                    {property.status === 'EXPIRED' ? (
-                      <div className="w-full text-center py-3 px-4 text-xs font-bold text-[#f43f5e] bg-[#f43f5e]/10 border border-[#f43f5e]/20 rounded-xl">
-                        ⚠️ Inquiries Suspended
-                      </div>
-                    ) : (
-                      <>
-                        <button
-                          id="detail-whatsapp-btn"
-                          onClick={handleWhatsAppClick}
-                          className="w-full flex items-center justify-center gap-2.5 h-12 rounded-xl text-sm font-bold text-[#07090f] hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer"
-                          style={{ background: brandColor }}
-                        >
-                          <span className="text-base">💬</span>
-                          Chat on WhatsApp
-                        </button>
-                        <button
-                          id="detail-call-btn"
-                          onClick={handleCallClick}
-                          className="w-full flex items-center justify-center gap-2.5 h-12 rounded-xl text-sm font-semibold text-[#f0f4ff] bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.08)] transition-all cursor-pointer"
-                        >
-                          <span className="text-base">📞</span>
-                          Call Broker
-                        </button>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Trust signals */}
-                  <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.05)]">
-                    <div className="flex items-center gap-2 text-[10px] text-[#4a5470]">
-                      <span>🔒</span>
-                      <span>Your details are safe. We don't share your contact.</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Share this listing */}
-                <div className="os-card p-4">
-                  <p className="text-xs font-semibold text-[#8892aa] mb-3">Share this listing</p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleWhatsAppClick}
-                      className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-xl bg-[#25D366]/10 border border-[#25D366]/20 text-[#25D366] text-xs font-semibold hover:bg-[#25D366]/20 transition-all cursor-pointer"
-                    >
-                      <span>💬</span> WhatsApp
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (navigator.share) {
-                          navigator.share({ title: property.title, url: window.location.href });
-                        } else {
-                          navigator.clipboard.writeText(window.location.href);
-                        }
-                      }}
-                      className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-xl bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[#8892aa] text-xs font-semibold hover:bg-[rgba(255,255,255,0.08)] transition-all cursor-pointer"
-                    >
-                      <span>🔗</span> Copy Link
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </main>
-
-        {/* Powered by footer */}
-        <div className="max-w-4xl mx-auto px-4 pb-6">
-          <p className="text-center text-[10px] text-[#4a5470]">
-            Powered by <span className="text-[#16c784] font-semibold">PropertyOS</span>
-          </p>
+  return <>
+    <style>{`:root{--listing-brand:${brandColor}}`}</style>
+    <div className="min-h-screen bg-[#f4f4ed] pb-24 text-[#10221c] selection:bg-[#b7f34b]">
+      <header className="sticky top-0 z-40 border-b border-[#10221c]/10 bg-[#f4f4ed]/90 backdrop-blur-xl">
+        <div className="mx-auto flex h-[70px] max-w-6xl items-center justify-between px-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3"><span className="relative grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-xl bg-[#10221c] text-sm font-black text-[#b7f34b]"><span>{property.broker.name[0]?.toUpperCase()}</span>{property.brand_logo_url&&<span aria-hidden className="absolute inset-0 bg-contain bg-center bg-no-repeat" style={{backgroundImage:`url(${property.brand_logo_url})`}}/>}</span><div className="min-w-0"><p className="truncate text-sm font-black tracking-[-.02em]">{property.agency_name || property.broker.agency_name || property.broker.name}</p><p className="text-[10px] font-bold uppercase tracking-[.12em] text-[#718078]">Exclusive property presentation</p></div></div>
+          <button onClick={share} className="flex items-center gap-2 rounded-full border border-[#10221c]/15 bg-white/50 px-3 py-2 text-xs font-black"><Share2 size={15}/><span className="hidden sm:inline">Share listing</span></button>
         </div>
-      </div>
+      </header>
 
-      {/* ── Gated Buyer Modal ── */}
-      {showGatedModal && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/85 backdrop-blur-md px-4">
-          <div className="relative w-full max-w-md bg-[#0a0c14] border border-[rgba(255,255,255,0.08)] rounded-2xl p-6 shadow-2xl">
-            {/* Close Button */}
-            <button
-              onClick={() => {
-                setShowGatedModal(false);
-                setPendingAction(null);
-                setModalError('');
-              }}
-              className="absolute top-4 right-4 w-8 h-8 rounded-lg flex items-center justify-center text-[#4a5470] hover:text-[#f0f4ff] hover:bg-[rgba(255,255,255,0.05)] transition-all"
-            >
-              ✕
-            </button>
+      <main className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-8">
+        {inactive&&<div className="mb-5 rounded-2xl border border-[#b84632]/20 bg-[#fff0ec] p-4 text-sm font-bold text-[#a23c29]">This listing is currently inactive. Contact actions have been paused.</div>}
+        <Gallery images={property.images} title={property.title}/>
 
-            <div className="text-center mb-6">
-              <div className="w-12 h-12 rounded-2xl bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] flex items-center justify-center text-xl mx-auto mb-4">
-                🎯
-              </div>
-              <h3 className="text-lg font-bold text-[#f0f4ff]">Connect with Broker</h3>
-              <p className="text-xs text-[#8892aa] mt-1.5 leading-relaxed">
-                Please provide your contact details to connect with the broker instantly. Your details are secure and shared only with the listing broker.
-              </p>
-            </div>
+        <section className="mt-7 grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-12">
+          <div>
+            <div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-[#dcebc9] px-3 py-1.5 text-[10px] font-black uppercase tracking-[.12em] text-[#315f2b]">{pretty(property.status)}</span><span className="rounded-full border border-[#10221c]/10 bg-white/55 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.12em] text-[#64736c]">{pretty(property.property_type)}</span><span className="flex items-center gap-1 text-[11px] font-bold text-[#64736c]"><BadgeCheck size={14} className="text-[#3d7d43]"/>Broker-listed</span></div>
+            <h1 className="mt-5 max-w-3xl text-3xl font-black leading-[1.06] tracking-[-.05em] sm:text-5xl">{property.title}</h1>
+            <p className="mt-3 flex items-start gap-2 text-sm text-[#64736c]"><MapPin size={17} className="mt-0.5 shrink-0"/>{property.address ? `${property.address}, ` : ''}{property.area}, {property.city}</p>
+            <div className="mt-6 flex items-end gap-2"><strong className="text-4xl font-black tracking-[-.055em] sm:text-5xl">{price.main}</strong>{price.unit&&<span className="pb-1 text-lg font-bold text-[#64736c]">{price.unit}</span>}</div>
 
-            <form onSubmit={handleModalSubmit} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#4a5470] mb-1.5">
-                  Your Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. John Doe"
-                  value={modalName}
-                  onChange={e => setModalName(e.target.value)}
-                  className="w-full h-11 px-3.5 bg-[#07090f]/60 border border-[rgba(255,255,255,0.08)] rounded-xl text-sm text-[#f0f4ff] placeholder-[#4a5470] focus:outline-none focus:border-[var(--brand)] focus:ring-1 focus:ring-[var(--brand)] transition-all"
-                />
-              </div>
+            <div className="mt-8 grid grid-cols-2 overflow-hidden rounded-[22px] border border-[#10221c]/10 bg-white/55 sm:grid-cols-4">{specItems.map((item,index)=><div key={`${item.value}-${index}`} className="border-b border-r border-[#10221c]/10 p-4 last:border-r-0 sm:border-b-0"><span className="text-[#708077] [&>svg]:h-5 [&>svg]:w-5">{item.icon}</span><strong className="mt-4 block text-base font-black">{item.value}</strong><span className="mt-1 block text-[10px] font-bold uppercase tracking-[.1em] text-[#7b8780]">{item.label}</span></div>)}</div>
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#4a5470] mb-1.5">
-                  Phone Number
-                </label>
-                <input
-                  type="tel"
-                  required
-                  placeholder="e.g. +91 99999 99999"
-                  value={modalPhone}
-                  onChange={e => setModalPhone(e.target.value)}
-                  className="w-full h-11 px-3.5 bg-[#07090f]/60 border border-[rgba(255,255,255,0.08)] rounded-xl text-sm text-[#f0f4ff] placeholder-[#4a5470] focus:outline-none focus:border-[var(--brand)] focus:ring-1 focus:ring-[var(--brand)] transition-all"
-                />
-              </div>
+            <section className="mt-10 border-t border-[#10221c]/10 pt-8"><p className="text-[11px] font-black uppercase tracking-[.18em] text-[#ff715b]">The property</p><h2 className="mt-2 text-2xl font-black tracking-[-.035em]">Designed to help you decide, not just browse.</h2><p className="mt-5 whitespace-pre-line text-[15px] leading-8 text-[#586861]">{property.description}</p></section>
 
-              {modalError && (
-                <p className="text-xs font-medium text-[#f43f5e] text-center">{modalError}</p>
-              )}
+            {property.amenities.length>0&&<section className="mt-10 border-t border-[#10221c]/10 pt-8"><div className="flex items-end justify-between gap-4"><div><p className="text-[11px] font-black uppercase tracking-[.18em] text-[#ff715b]">Included</p><h2 className="mt-2 text-2xl font-black tracking-[-.035em]">Amenities and conveniences</h2></div><Sparkles className="text-[#ff715b]"/></div><div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3">{property.amenities.map(amenity=><div key={amenity} className="flex items-center gap-3 rounded-2xl border border-[#10221c]/10 bg-white/50 px-4 py-3.5 text-sm font-bold"><span className="grid h-7 w-7 place-items-center rounded-full bg-[#dcebc9] text-[#315f2b]"><Check size={14}/></span>{AMENITY_LABELS[amenity] || pretty(amenity)}</div>)}</div></section>}
 
-              <button
-                type="submit"
-                className="w-full h-11 rounded-xl text-sm font-bold text-[#07090f] hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer mt-2"
-                style={{ background: brandColor }}
-              >
-                Continue to {pendingAction === 'whatsapp' ? 'WhatsApp' : 'Call'}
-              </button>
-            </form>
+            <section className="mt-10 border-t border-[#10221c]/10 pt-8"><p className="text-[11px] font-black uppercase tracking-[.18em] text-[#ff715b]">Location</p><h2 className="mt-2 text-2xl font-black tracking-[-.035em]">Explore {property.area}</h2><div className="relative mt-6 min-h-[250px] overflow-hidden rounded-[24px] bg-[#dfe4da] p-7"><div className="absolute inset-0 opacity-30 [background-image:linear-gradient(#718078_1px,transparent_1px),linear-gradient(90deg,#718078_1px,transparent_1px)] [background-size:36px_36px] [mask-image:radial-gradient(circle_at_center,black,transparent_75%)]"/><div className="relative z-10 flex min-h-[196px] items-center justify-center"><div className="rounded-2xl bg-[#10221c] p-5 text-center text-white shadow-2xl"><span className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-[#b7f34b] text-[#10221c]"><MapPin size={20}/></span><strong className="mt-3 block">{property.area}, {property.city}</strong>{property.address&&<span className="mt-1 block max-w-xs text-xs text-white/60">{property.address}</span>}</div></div></div><p className="mt-3 text-xs text-[#718078]">Exact directions and site-visit details are available directly from the listing broker.</p></section>
           </div>
-        </div>
-      )}
 
-      {/* ── Sticky bottom CTA (mobile + desktop) ── */}
-      <StickyCtaBar
-        phone={property.broker.phone}
-        whatsapp={property.broker.whatsapp}
-        price={property.price}
-        propertyTitle={property.title}
-        brandColor={brandColor}
-        onWhatsApp={handleWhatsAppClick}
-        onCall={handleCallClick}
-        disabled={property.status === 'EXPIRED'}
-      />
-    </>
-  );
+          <aside className="lg:relative"><div className="space-y-4 lg:sticky lg:top-24">
+            <div className="rounded-[26px] bg-[#10221c] p-6 text-white shadow-[0_25px_70px_rgba(16,34,28,.16)]"><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#b7f34b]">Your direct property contact</p><div className="mt-5 flex items-center gap-3"><span className="relative grid h-12 w-12 place-items-center overflow-hidden rounded-2xl bg-[#b7f34b] text-lg font-black text-[#10221c]"><span>{property.broker.name[0]?.toUpperCase()}</span>{property.broker.avatar_url&&<span aria-hidden className="absolute inset-0 bg-cover bg-center" style={{backgroundImage:`url(${property.broker.avatar_url})`}}/>}</span><div className="min-w-0"><div className="flex items-center gap-1.5"><strong className="truncate">{property.broker.name}</strong><BadgeCheck size={16} className="text-[#b7f34b]"/></div><p className="truncate text-xs text-white/55">{property.broker.agency_name || property.agency_name || 'Independent property advisor'}</p></div></div><div className="mt-6 space-y-2"><button disabled={inactive} onClick={()=>requestContact('whatsapp')} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#b7f34b] text-sm font-black text-[#10221c] disabled:opacity-40"><MessageCircle size={17}/>Ask on WhatsApp</button><button disabled={inactive} onClick={()=>requestContact('call')} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 text-sm font-black disabled:opacity-40"><Phone size={16}/>Call broker</button></div><div className="mt-5 space-y-3 border-t border-white/10 pt-5 text-[11px] leading-5 text-white/60"><p className="flex gap-2"><CalendarCheck size={15} className="mt-0.5 shrink-0 text-[#b7f34b]"/>Ask for availability, a video tour, price details or a site-visit slot.</p><p className="flex gap-2"><ShieldCheck size={15} className="mt-0.5 shrink-0 text-[#b7f34b]"/>Your contact information goes only to this listing broker.</p></div></div>
+            <div className="rounded-[22px] border border-[#10221c]/10 bg-white/55 p-5"><div className="flex items-center justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.14em] text-[#718078]">Listing engagement</p><strong className="mt-1 block text-2xl">{property.views.toLocaleString('en-IN')} views</strong></div><span className="grid h-10 w-10 place-items-center rounded-full bg-[#dcebc9] text-[#315f2b]"><Maximize2 size={18}/></span></div><p className="mt-3 text-xs leading-5 text-[#718078]">Share the page with family or your advisor before scheduling a visit.</p><button onClick={share} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-[#10221c]/10 py-3 text-xs font-black"><Share2 size={15}/>Share this property</button></div>
+          </div></aside>
+        </section>
+      </main>
+
+      <footer className="mt-10 border-t border-[#10221c]/10 px-4 py-8 text-center text-xs text-[#718078]"><p>Presented by <strong className="text-[#10221c]">{property.agency_name || property.broker.name}</strong></p><p className="mt-2">Digital property experience powered by <span className="font-black text-[#3f6e3f]">PropertyOS</span></p></footer>
+    </div>
+
+    <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#10221c]/95 p-3 text-white backdrop-blur-xl lg:hidden"><div className="mx-auto flex max-w-xl items-center gap-2"><div className="min-w-0 flex-1"><span className="block text-[9px] uppercase tracking-widest text-white/50">Price</span><strong className="truncate text-base">{price.main} {price.unit}</strong></div><button disabled={inactive} onClick={()=>requestContact('call')} className="grid h-11 w-11 place-items-center rounded-xl border border-white/15 disabled:opacity-40"><Phone size={17}/></button><button disabled={inactive} onClick={()=>requestContact('whatsapp')} className="flex h-11 items-center gap-2 rounded-xl bg-[#b7f34b] px-4 text-sm font-black text-[#10221c] disabled:opacity-40"><MessageCircle size={17}/>Enquire</button></div></div>
+
+    {modalOpen&&<div className="fixed inset-0 z-[130] grid place-items-center bg-[#07110e]/80 p-4 backdrop-blur-md"><div className="relative w-full max-w-md rounded-[26px] bg-[#f4f4ed] p-6 text-[#10221c] shadow-2xl"><button onClick={()=>setModalOpen(false)} className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-[#10221c]/5"><X size={17}/></button><span className="grid h-12 w-12 place-items-center rounded-2xl bg-[#dcebc9] text-[#315f2b]"><MessageCircle/></span><h2 className="mt-5 text-2xl font-black tracking-[-.04em]">Connect with {property.broker.name}</h2><p className="mt-2 text-sm leading-6 text-[#64736c]">Share your details once to continue to {pending==='whatsapp'?'WhatsApp':'a phone call'}. They are sent only to this broker.</p><form onSubmit={submitContact} className="mt-6 space-y-4"><label className="block text-xs font-black">Your name<input value={name} onChange={event=>setName(event.target.value)} placeholder="e.g. Rohan Sharma" className="mt-2 h-12 w-full rounded-xl border border-[#10221c]/15 bg-white/60 px-4 text-sm outline-none focus:border-[#315f2b]"/></label><label className="block text-xs font-black">Phone number<input value={phone} onChange={event=>setPhone(event.target.value)} placeholder="e.g. +91 99999 99999" type="tel" className="mt-2 h-12 w-full rounded-xl border border-[#10221c]/15 bg-white/60 px-4 text-sm outline-none focus:border-[#315f2b]"/></label>{error&&<p className="text-xs font-bold text-[#b84632]">{error}</p>}<button className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#10221c] text-sm font-black text-[#b7f34b]">Continue <ArrowRight size={16}/></button><p className="text-center text-[10px] leading-4 text-[#718078]">By continuing, you agree to be contacted about this property.</p></form></div></div>}
+  </>;
 }

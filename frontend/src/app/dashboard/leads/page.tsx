@@ -124,11 +124,27 @@ export default function LeadsPage() {
   };
 
   // Handle Quick Actions
-  const handleQuickWhatsApp = (lead: Lead) => {
-    const text = encodeURIComponent(
-      `Hi ${lead.buyer_name}! Thanks for your inquiry about "${lead.property_title || 'our listings'}". How can I help you further?`
+  const getLeadWhatsAppMessage = (lead: Lead) => {
+    const firstName = lead.buyer_name?.split(' ')[0] || 'there';
+    const listing = lead.property_title || 'the listing you viewed';
+    return (
+      `Hi ${firstName}, thanks for checking ${listing}. ` +
+      'Would you prefer a quick video tour or a site visit slot? I can share the best available timings.'
     );
+  };
+
+  const handleQuickWhatsApp = (lead: Lead) => {
+    const text = encodeURIComponent(getLeadWhatsAppMessage(lead));
     window.open(`https://wa.me/${lead.phone.replace(/[^0-9+]/g, '')}?text=${text}`, '_blank');
+  };
+
+  const handleCopyLeadReply = async (lead: Lead) => {
+    try {
+      await navigator.clipboard.writeText(getLeadWhatsAppMessage(lead));
+      toast.success('Smart WhatsApp reply copied');
+    } catch {
+      toast.error('Could not copy reply');
+    }
   };
 
   // Drag and drop handlers for Kanban pipeline
@@ -481,6 +497,12 @@ export default function LeadsPage() {
               >
                 <span>📞</span> Call Direct
               </a>
+              <button
+                onClick={() => handleCopyLeadReply(selectedLead)}
+                className="col-span-2 flex items-center justify-center gap-2 h-9 rounded-xl bg-[#a78bfa]/10 border border-[#a78bfa]/20 text-[#c4b5fd] text-xs font-semibold hover:bg-[#a78bfa]/20 active:scale-95 transition-all cursor-pointer"
+              >
+                <span>✨</span> Copy smart follow-up
+              </button>
             </div>
 
             {/* Form & Details */}

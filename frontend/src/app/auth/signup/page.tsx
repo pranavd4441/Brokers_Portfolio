@@ -15,6 +15,11 @@ export default function SignupPage() {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [locale, setLocale] = useState('en');
+  const [referralCode, setReferralCode] = useState('');
+  const [marketingConsent, setMarketingConsent] = useState(true);
+  const [termsConsent, setTermsConsent] = useState(false);
+  const [source, setSource] = useState('direct');
   const [loading, setLoading] = useState(false);
   const [clientError, setClientError] = useState<string | null>(null);
 
@@ -24,6 +29,9 @@ export default function SignupPage() {
       router.push('/dashboard');
     }
     clearError();
+    const params = new URLSearchParams(window.location.search);
+    setSource(params.get('source') || 'direct');
+    setReferralCode(params.get('ref') || '');
   }, [router, clearError]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -35,6 +43,10 @@ export default function SignupPage() {
       setClientError('Please fill in all fields.');
       return;
     }
+    if (!termsConsent) {
+      setClientError('Please accept the Terms and Privacy Notice to create your workspace.');
+      return;
+    }
 
     if (password.length < 8) {
       setClientError('Password must be at least 8 characters long.');
@@ -43,7 +55,7 @@ export default function SignupPage() {
 
     setLoading(true);
     try {
-      await signup(companyName, name, email, password, phone);
+      await signup(companyName, name, email, password, phone, { source, referralCode, locale, marketingConsent });
       router.push('/dashboard');
     } catch (err: any) {
       // Error is handled in the store
@@ -69,10 +81,10 @@ export default function SignupPage() {
           </div>
         </div>
         <h2 className="mt-6 text-center text-3xl font-extrabold tracking-tight text-white">
-          Create your broker workspace
+          Start your 14-day assisted pilot
         </h2>
         <p className="mt-2 text-center text-sm text-slate-400">
-          Or{' '}
+          No card required · First three listings assisted · Or{' '}
           <Link href="/auth/login" className="font-semibold text-emerald-400 hover:text-emerald-300 transition-colors">
             sign in to your existing account
           </Link>
@@ -107,6 +119,11 @@ export default function SignupPage() {
                   placeholder="e.g., Prime Realtors"
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div><label htmlFor="locale" className="block text-sm font-medium text-slate-300">Support language</label><select id="locale" value={locale} onChange={(e)=>setLocale(e.target.value)} className="mt-1 block w-full px-3 py-3 rounded-xl border border-slate-800 bg-slate-950/60 text-white"><option value="en">English</option><option value="hi">हिंदी</option><option value="mr">मराठी</option></select></div>
+              <div><label htmlFor="referral" className="block text-sm font-medium text-slate-300">Referral code</label><input id="referral" value={referralCode} onChange={(e)=>setReferralCode(e.target.value.toUpperCase())} placeholder="Optional" className="mt-1 block w-full px-3 py-3 rounded-xl border border-slate-800 bg-slate-950/60 text-white" /></div>
             </div>
 
             <div>
@@ -181,9 +198,8 @@ export default function SignupPage() {
               </div>
             </div>
 
-            <div className="text-xs text-slate-400">
-              By registering, you agree to create a tenant workspace under the PropertyOS system architecture.
-            </div>
+            <label className="flex items-start gap-3 text-xs text-slate-400"><input type="checkbox" checked={termsConsent} onChange={(e)=>setTermsConsent(e.target.checked)} className="mt-0.5"/><span>I agree to the <Link href="/terms" className="text-emerald-400">Terms</Link> and <Link href="/privacy" className="text-emerald-400">Privacy Notice</Link>, including processing needed to operate my workspace.</span></label>
+            <label className="flex items-start gap-3 text-xs text-slate-400"><input type="checkbox" checked={marketingConsent} onChange={(e)=>setMarketingConsent(e.target.checked)} className="mt-0.5"/><span>Send me pilot guidance, product tips and demo reminders on WhatsApp. I can opt out anytime.</span></label>
 
             <div>
               <button
@@ -194,7 +210,7 @@ export default function SignupPage() {
                 {loading ? (
                   <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
                 ) : (
-                  'Create Workspace'
+                  'Start Free Assisted Pilot'
                 )}
               </button>
             </div>
