@@ -7,7 +7,7 @@ from rest_framework.test import APIClient
 from apps.accounts.models import Tenant, User
 from apps.properties.models import Property
 from apps.sharing.models import ShareLink
-from apps.whatsapp.models import WhatsAppSession
+from apps.whatsapp.models import ConversationMessage, WhatsAppSession
 from apps.whatsapp.services import RegexParserService
 
 
@@ -117,6 +117,78 @@ def test_whatsapp_onboarding_conversation_flow(mock_gateway_fn, api_client, test
     share_link = ShareLink.objects_unfiltered.filter(property=property_obj).first()
     assert share_link is not None
     assert share_link.slug != ""
+
+
+@pytest.mark.django_db
+@patch("apps.whatsapp.services.get_whatsapp_gateway")
+def test_guided_whatsapp_listing_wizard_publishes_one_shareable_listing(
+    mock_gateway_fn, api_client, test_setup
+):
+    """Exercise every user-facing step in the current five-step listing wizard."""
+    _, broker = test_setup
+    mock_gateway = MagicMock()
+    mock_gateway.send_message.return_value = True
+    mock_gateway_fn.return_value = mock_gateway
+
+    webhook_url = reverse("whatsapp_webhook")
+    sender = "whatsapp:+919999999999"
+
+    def send(body):
+        response = api_client.post(
+            webhook_url,
+            {"From": sender, "Body": body, "NumMedia": "0"},
+        )
+        assert response.status_code == 200
+        return WhatsAppSession.objects.get(phone_number="+919999999999")
+
+    session = send("create listing")
+    assert session.state == "COLLECTING"
+    assert session.metadata["step"] == "AWAITING_PHOTOS"
+
+    session = send("btn_skip_photos")
+    assert session.metadata["step"] == "AWAITING_DETAILS"
+
+    session = send(
+        "3 BHK luxury flat in Baner for sale, 1.25 Cr, 1650 sqft, east-facing with balcony"
+    )
+    assert session.metadata["step"] == "CONFIRMING_DETAILS"
+    assert session.metadata["bhk"] == 3
+    assert session.metadata["price"] == 12_500_000
+    assert session.metadata["square_feet"] == 1650
+    assert session.metadata["area"] == "Baner"
+
+    session = send("btn_details_edit")
+    assert session.metadata["step"] == "EDITING_WIZARD_FIELD"
+    session = send("wiz_edit_city")
+    assert session.metadata["step"] == "AWAITING_WIZARD_FIELD_VALUE"
+    session = send("Pune")
+    assert session.metadata["step"] == "CONFIRMING_DETAILS"
+    assert session.metadata["city"] == "Pune"
+
+    session = send("btn_details_ok")
+    assert session.metadata["step"] == "CONFIRMING_AMENITIES"
+    session = send("btn_skip_amenities")
+    assert session.metadata["step"] == "CONFIRMING_PUBLISH"
+    session = send("btn_publish")
+
+    assert session.state == "IDLE"
+    assert session.metadata == {}
+
+    property_obj = Property.objects_unfiltered.get(created_by=broker)
+    assert property_obj.title == "3 BHK Apartment in Baner"
+    assert property_obj.city == "Pune"
+    assert property_obj.status == "AVAILABLE"
+
+    share_links = ShareLink.objects_unfiltered.filter(property=property_obj)
+    assert share_links.count() == 1
+    share_link = share_links.get()
+
+    final_message = ConversationMessage.objects.filter(
+        session=session, direction="OUTBOUND"
+    ).last()
+    assert final_message is not None
+    assert "successfully published" in final_message.body
+    assert f"/p/{share_link.slug}" in final_message.body
 
 
 @pytest.mark.django_db

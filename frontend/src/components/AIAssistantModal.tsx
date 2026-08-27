@@ -29,6 +29,8 @@ interface AIData {
   qualification_questions?: string[];
   objection_handlers?: Array<{ objection: string; reply: string }>;
   recommended_next_action?: string;
+  generation_source: 'gemini';
+  generation_model?: string;
 }
 
 export default function AIAssistantModal({
@@ -44,6 +46,7 @@ export default function AIAssistantModal({
   const [rawNotes, setRawNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [aiData, setAIData] = useState<AIData | null>(null);
+  const [generationError, setGenerationError] = useState<string | null>(null);
   const [activePitchTab, setActivePitchTab] = useState(0);
   const [copiedPitchIndex, setCopiedPitchIndex] = useState<number | null>(null);
 
@@ -69,9 +72,10 @@ export default function AIAssistantModal({
 
     setLoading(true);
     setAIData(null);
+    setGenerationError(null);
 
     try {
-      const data = await fetchApi('/properties/generate-ai/', {
+      const data = await fetchApi<AIData>('/properties/generate-ai/', {
         method: 'POST',
         body: JSON.stringify({
           raw_notes: rawNotes.trim(),
@@ -83,10 +87,14 @@ export default function AIAssistantModal({
         }),
       });
 
+      if (data.generation_source !== 'gemini') {
+        throw new Error('The backend did not return live model-generated content.');
+      }
       setAIData(data);
-      toast.success('AI suggestions generated!');
+      toast.success('Live AI suggestions generated!');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to generate suggestions';
+      setGenerationError(message);
       toast.error(message);
     } finally {
       setLoading(false);
@@ -119,7 +127,7 @@ export default function AIAssistantModal({
             <span className="text-xl">✨</span>
             <div>
               <h2 className="text-base font-bold text-[#f0f4ff] tracking-tight">AI Copywriting Assistant</h2>
-              <p className="text-[10px] text-[#8892aa] mt-0.5">Generate high-performing listings & WhatsApp pitches instantly</p>
+              <p className="text-[10px] text-[#8892aa] mt-0.5">Live Gemini-generated listing copy and WhatsApp pitches</p>
             </div>
           </div>
           <button
@@ -166,6 +174,19 @@ export default function AIAssistantModal({
             </div>
           </form>
 
+          {generationError && (
+            <div className="rounded-2xl border border-amber-400/20 bg-amber-400/8 p-4" role="alert">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 text-base">⚠️</span>
+                <div>
+                  <p className="text-xs font-bold text-amber-200">Live AI generation is unavailable</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-amber-100/70">{generationError}</p>
+                  <p className="mt-2 text-[10px] leading-relaxed text-[#8892aa]">PropertyOS will not substitute scripted templates and label them as AI output.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Skeletons on loading */}
           {loading && (
             <div className="space-y-4 pt-4 border-t border-[rgba(255,255,255,0.06)]">
@@ -181,6 +202,10 @@ export default function AIAssistantModal({
           {/* Results Area */}
           {aiData && (
             <div className="space-y-6 pt-6 border-t border-[rgba(255,255,255,0.06)] os-fade-in">
+              <div className="flex items-center justify-between rounded-xl border border-[#16c784]/20 bg-[#16c784]/8 px-3 py-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#16c784]">Live model output</span>
+                <span className="text-[10px] text-[#8892aa]">{aiData.generation_model || 'Gemini'}</span>
+              </div>
               {/* Generated Title */}
               <div className="os-frosted-dark p-4 rounded-2xl border border-[rgba(255,255,255,0.04)] space-y-2">
                 <div className="flex items-center justify-between gap-4">

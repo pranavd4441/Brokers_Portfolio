@@ -285,16 +285,39 @@ class PropertyViewSet(viewsets.ModelViewSet):
         area = request.data.get("area")
         city = request.data.get("city")
 
-        from .ai_service import PropertyAIService
-
-        data = PropertyAIService.generate(
-            raw_notes=raw_notes,
-            property_type=property_type,
-            price=price,
-            bhk=bhk,
-            area=area,
-            city=city,
+        from .ai_service import (
+            AIConfigurationError,
+            AIGenerationError,
+            PropertyAIService,
         )
+
+        try:
+            data = PropertyAIService.generate(
+                raw_notes=raw_notes,
+                property_type=property_type,
+                price=price,
+                bhk=bhk,
+                area=area,
+                city=city,
+            )
+        except AIConfigurationError as exc:
+            return Response(
+                {
+                    "detail": str(exc),
+                    "code": "ai_not_configured",
+                    "generation_source": "unavailable",
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except AIGenerationError as exc:
+            return Response(
+                {
+                    "detail": str(exc),
+                    "code": "ai_generation_failed",
+                    "generation_source": "unavailable",
+                },
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
         return Response(data, status=status.HTTP_200_OK)
 
     @decorators.action(detail=True, methods=["get"], url_path="brochure")

@@ -1019,10 +1019,9 @@ class WhatsAppWebhookView(APIView):
                                     display_order=img_data["display_order"],
                                 )
 
-                            share_link = ShareLink.objects.create(
+                            share_link, _ = ShareLink.objects.get_or_create(
                                 property=property_obj,
-                                created_by=user,
-                                tenant=user.tenant,
+                                defaults={"created_by": user, "tenant": user.tenant},
                             )
 
                         session.state = "IDLE"
@@ -1394,10 +1393,9 @@ class WhatsAppWebhookView(APIView):
                                         display_order=img_data["display_order"],
                                     )
 
-                                share_link = ShareLink.objects.create(
+                                share_link, _ = ShareLink.objects.get_or_create(
                                     property=property_obj,
-                                    created_by=user,
-                                    tenant=user.tenant,
+                                    defaults={"created_by": user, "tenant": user.tenant},
                                 )
 
                             session.state = "IDLE"
@@ -1496,10 +1494,9 @@ class WhatsAppWebhookView(APIView):
                                         display_order=img_data["display_order"],
                                     )
 
-                                share_link = ShareLink.objects.create(
+                                share_link, _ = ShareLink.objects.get_or_create(
                                     property=property_obj,
-                                    created_by=user,
-                                    tenant=user.tenant,
+                                    defaults={"created_by": user, "tenant": user.tenant},
                                 )
 
                             session.state = "IDLE"

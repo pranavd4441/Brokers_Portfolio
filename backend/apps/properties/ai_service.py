@@ -1,11 +1,18 @@
 import json
 import logging
-import urllib.parse
 import urllib.request
 
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
+
+
+class AIConfigurationError(RuntimeError):
+    """Raised when live model generation has not been configured."""
+
+
+class AIGenerationError(RuntimeError):
+    """Raised when a configured model request cannot produce usable output."""
 
 
 class PropertyAIService:
@@ -22,12 +29,17 @@ class PropertyAIService:
         bhk: str = None,
         area: str = None,
         city: str = None,
+        allow_fallback: bool = False,
     ) -> dict:
-        api_key = getattr(settings, "GEMINI_API_KEY", "")
+        api_key = getattr(settings, "GEMINI_API_KEY", "").strip()
         if not api_key:
-            logger.info("Gemini API key not configured. Using local template fallback.")
-            return PropertyAIService._get_fallback_data(
-                raw_notes, property_type, price, bhk, area, city
+            if allow_fallback:
+                logger.info("Gemini API key not configured. Explicit template fallback requested.")
+                return PropertyAIService._get_fallback_data(
+                    raw_notes, property_type, price, bhk, area, city
+                )
+            raise AIConfigurationError(
+                "Live AI generation is not configured. Set GEMINI_API_KEY on the backend and restart the service."
             )
 
         # 1. Formulate the prompt
@@ -95,17 +107,24 @@ Return ONLY a raw JSON object matching this schema:
 
 Ensure all fields are fully populated and text is copywriter-grade, practical for Indian real estate brokers, and ready to paste into WhatsApp. Return only valid JSON. Do not wrap in markdown ```json ... ``` blocks or add any other text.
 """
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+        model_name = getattr(settings, "GEMINI_MODEL", "gemini-2.5-flash")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"responseMimeType": "application/json"},
+            "generationConfig": {
+                "responseMimeType": "application/json",
+                "temperature": 0.75,
+            },
         }
 
         try:
             req = urllib.request.Request(
                 url,
                 data=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
+                headers={
+                    "Content-Type": "application/json",
+                    "x-goog-api-key": api_key,
+                },
                 method="POST",
             )
             with urllib.request.urlopen(req, timeout=12) as response:  # nosec B310
@@ -114,8 +133,6 @@ Ensure all fields are fully populated and text is copywriter-grade, practical fo
 
                 # Extract response text
                 text_out = res_json["candidates"][0]["content"]["parts"][0]["text"]
-                logger.info(f"Gemini raw output: {text_out}")
-
                 parsed_data = json.loads(text_out)
 
                 # Validate the schema structure
@@ -129,25 +146,35 @@ Ensure all fields are fully populated and text is copywriter-grade, practical fo
                     all(field in parsed_data for field in required_fields)
                     and len(parsed_data.get("whatsapp_pitches", [])) >= 3
                 ):
-                    fallback = PropertyAIService._get_fallback_data(
-                        raw_notes, property_type, price, bhk, area, city
-                    )
-                    for key, value in fallback.items():
-                        parsed_data.setdefault(key, value)
+                    parsed_data["generation_source"] = "gemini"
+                    parsed_data["generation_model"] = model_name
                     return parsed_data
-                else:
-                    logger.warning("Gemini output missing fields. Falling back.")
+
+                if allow_fallback:
+                    logger.warning("Gemini output missed required fields. Explicit fallback requested.")
                     return PropertyAIService._get_fallback_data(
                         raw_notes, property_type, price, bhk, area, city
                     )
+                raise AIGenerationError(
+                    "Gemini returned an incomplete response. Please try generation again."
+                )
 
-        except Exception as e:
+        except AIGenerationError:
+            raise
+        except Exception as exc:
+            status_code = getattr(exc, "code", None)
             logger.error(
-                f"Gemini API generation failed: {str(e)}. Using fallback system."
+                "Gemini generation failed (%s, status=%s).",
+                type(exc).__name__,
+                status_code,
             )
-            return PropertyAIService._get_fallback_data(
-                raw_notes, property_type, price, bhk, area, city
-            )
+            if allow_fallback:
+                return PropertyAIService._get_fallback_data(
+                    raw_notes, property_type, price, bhk, area, city
+                )
+            raise AIGenerationError(
+                "Live AI generation failed. Check the Gemini configuration and try again."
+            ) from exc
 
     @staticmethod
     def _get_fallback_data(
@@ -266,4 +293,6 @@ Ensure all fields are fully populated and text is copywriter-grade, practical fo
             "qualification_questions": qualification_questions,
             "objection_handlers": objection_handlers,
             "recommended_next_action": "Share the warm WhatsApp pitch first, then offer a video tour or two site visit slots.",
+            "generation_source": "template",
+            "generation_model": None,
         }

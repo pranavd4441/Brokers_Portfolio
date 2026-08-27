@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Tenant
-from apps.properties.ai_service import PropertyAIService
+from apps.properties.ai_service import AIConfigurationError, PropertyAIService
 
 User = get_user_model()
 
@@ -58,6 +58,8 @@ def test_ai_generation_endpoint_success(mock_generate, api_client, test_setup):
             {"type": "Professional / Formal", "text": "Formal pitch"},
             {"type": "Investor / Fact-focused", "text": "Investor pitch"},
         ],
+        "generation_source": "gemini",
+        "generation_model": "gemini-2.5-flash",
     }
     mock_generate.return_value = mock_data
 
@@ -75,6 +77,7 @@ def test_ai_generation_endpoint_success(mock_generate, api_client, test_setup):
     assert response.status_code == 200
     assert response.data["title"] == "Stunning 3 BHK Apartment"
     assert len(response.data["whatsapp_pitches"]) == 3
+    assert response.data["generation_source"] == "gemini"
     mock_generate.assert_called_once_with(
         raw_notes="3 BHK flat in Bandra West, price 3 Cr",
         property_type="APARTMENT",
@@ -158,6 +161,8 @@ def test_ai_service_gemini_success(mock_urlopen):
     assert res["title"] == "Beautiful Villa in Goa"
     assert res["description"] == "Lovely 4 BHK Villa in Goa."
     assert len(res["whatsapp_pitches"]) == 3
+    assert res["generation_source"] == "gemini"
+    assert res["generation_model"] == "gemini-2.5-flash"
 
 
 @pytest.mark.django_db
@@ -173,6 +178,7 @@ def test_ai_service_fallback_system():
         bhk="2",
         area="Kalyani Nagar",
         city="Pune",
+        allow_fallback=True,
     )
 
     assert res["title"] == "2 BHK Apartment in Kalyani Nagar"
@@ -181,3 +187,28 @@ def test_ai_service_fallback_system():
     assert len(res["headlines"]) == 5
     assert len(res["whatsapp_pitches"]) == 3
     assert res["whatsapp_pitches"][0]["type"] == "Warm / Friendly"
+    assert res["generation_source"] == "template"
+
+
+@pytest.mark.django_db
+@patch("django.conf.settings.GEMINI_API_KEY", "")
+def test_ai_service_refuses_to_label_templates_as_generated():
+    with pytest.raises(AIConfigurationError, match="GEMINI_API_KEY"):
+        PropertyAIService.generate(raw_notes="3 BHK in Baner")
+
+
+@pytest.mark.django_db
+@patch("django.conf.settings.GEMINI_API_KEY", "")
+def test_ai_endpoint_reports_missing_live_model_configuration(api_client, test_setup):
+    _, user = test_setup
+    api_client.force_authenticate(user=user)
+
+    response = api_client.post(
+        "/api/properties/generate-ai/",
+        {"raw_notes": "3 BHK in Baner with a terrace"},
+        format="json",
+    )
+
+    assert response.status_code == 503
+    assert response.data["code"] == "ai_not_configured"
+    assert response.data["generation_source"] == "unavailable"
