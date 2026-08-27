@@ -243,9 +243,9 @@ export async function fetchApi<T = any>(endpoint: string, options: ApiRequestOpt
         for (const [key, value] of Object.entries(errorPayload.details)) {
           const fieldName = key.charAt(0).toUpperCase() + key.slice(1);
           if (Array.isArray(value)) {
-            detailParts.push(`${fieldName}: ${value.join(', ')}`);
+            detailParts.push(key === 'detail' ? value.join(', ') : `${fieldName}: ${value.join(', ')}`);
           } else {
-            detailParts.push(`${fieldName}: ${value}`);
+            detailParts.push(key === 'detail' ? String(value) : `${fieldName}: ${value}`);
           }
         }
         if (detailParts.length > 0) {
@@ -264,6 +264,12 @@ export async function fetchApi<T = any>(endpoint: string, options: ApiRequestOpt
       console.error('fetchApi Error:', msg);
     } else {
       console.error('fetchApi: Received non-JSON response. Is the Django backend running?');
+    }
+    if (error instanceof TypeError && /fetch|network|load failed/i.test(error.message)) {
+      const message = typeof navigator !== 'undefined' && !navigator.onLine
+        ? "You're offline. Check your connection and try again."
+        : 'PropertyOS could not reach the server. Make sure the Django backend is running, then retry.';
+      throw new Error(message, { cause: error });
     }
     throw error;
   }

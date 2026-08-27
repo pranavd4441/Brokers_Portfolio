@@ -12,6 +12,7 @@ export interface TenantBranding {
   pilot_ends_at: string | null;
   referral_code: string | null;
   preferred_locale: 'en' | 'hi' | 'mr';
+  theme_mode?: 'LIGHT' | 'DARK';
 }
 
 export interface UserSession {

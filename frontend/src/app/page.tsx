@@ -6,16 +6,16 @@ import { ArrowRight, Building2, Check, Clock3, CreditCard, MessageCircle, Play, 
 
 const languageCopy = {
   en: {
-    headline: <>One property. One link. <em className="not-italic text-[#ff715b]">Every signal.</em></>,
-    subline: 'Turn scattered photos and details into a branded WhatsApp page in under 60 seconds—then see who viewed, clicked and enquired.',
+    headline: <>Your properties. Your brand. <em className="not-italic text-[#ff715b]">One professional link.</em></>,
+    subline: 'Build your own broker digital office, turn property details into polished pages, and share them on WhatsApp in under 60 seconds.',
   },
   hi: {
-    headline: <>एक प्रॉपर्टी। एक लिंक। <em className="not-italic text-[#ff715b]">हर संकेत।</em></>,
-    subline: 'बिखरी हुई फोटो और जानकारी को 60 सेकंड में ब्रांडेड WhatsApp पेज बनाइए—फिर देखिए किसने देखा, क्लिक किया और पूछताछ की।',
+    headline: <>आपकी प्रॉपर्टी। आपका ब्रांड। <em className="not-italic text-[#ff715b]">एक प्रोफेशनल लिंक।</em></>,
+    subline: 'अपना ब्रोकर डिजिटल ऑफिस बनाइए, प्रॉपर्टी की जानकारी को शानदार पेज में बदलिए और 60 सेकंड से कम समय में WhatsApp पर शेयर कीजिए।',
   },
   mr: {
-    headline: <>एक प्रॉपर्टी. एक लिंक. <em className="not-italic text-[#ff715b]">प्रत्येक संकेत.</em></>,
-    subline: 'विखुरलेले फोटो आणि माहिती 60 सेकंदांत ब्रँडेड WhatsApp पेजमध्ये बदला—आणि कोणी पाहिले, क्लिक केले व चौकशी केली ते समजा.',
+    headline: <>तुमच्या प्रॉपर्टी. तुमचा ब्रँड. <em className="not-italic text-[#ff715b]">एक प्रोफेशनल लिंक.</em></>,
+    subline: 'तुमचे ब्रोकर डिजिटल ऑफिस तयार करा, प्रॉपर्टीची माहिती आकर्षक पेजमध्ये बदला आणि 60 सेकंदांपेक्षा कमी वेळात WhatsApp वर शेअर करा.',
   },
 };
 
@@ -38,7 +38,7 @@ export default function HomePage() {
 
       <section className="grid border-b border-[#10221c]/10 lg:min-h-[650px] lg:grid-cols-[1.02fr_.98fr]">
         <div className="relative z-10 px-5 py-14 sm:px-10 md:py-20 lg:px-16 lg:py-24">
-          <div className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-[.16em] text-[#5d6d67]"><span className="h-2 w-2 rounded-full bg-[#ff715b] shadow-[0_0_0_6px_rgba(255,113,91,.13)]"/>Built with Pune brokers</div>
+          <div className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-[.16em] text-[#5d6d67]"><span className="h-2 w-2 rounded-full bg-[#ff715b] shadow-[0_0_0_6px_rgba(255,113,91,.13)]"/>Built for independent brokers</div>
           <h1 className="mt-7 max-w-3xl text-[46px] font-black leading-[.98] tracking-[-.065em] sm:text-6xl lg:text-[76px]">{copy.headline}</h1>
           <p className="mt-7 max-w-xl text-base leading-7 text-[#5d6d67] sm:text-lg sm:leading-8">{copy.subline}</p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row"><Link href="/auth/signup?source=hero" className="flex items-center justify-center gap-2 rounded-full bg-[#10221c] px-6 py-4 text-sm font-black text-[#b7f34b]"><Play size={16} fill="currentColor"/>Build my first page</Link><a href={whatsappHref} className="flex items-center justify-center gap-2 rounded-full border border-[#10221c]/15 px-6 py-4 text-sm font-black"><MessageCircle size={16}/>Watch WhatsApp demo</a></div>
@@ -50,11 +50,12 @@ export default function HomePage() {
           <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,.18)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.18)_1px,transparent_1px)] [background-size:42px_42px] [mask-image:linear-gradient(to_bottom,black,transparent)]"/>
           <div className="absolute -left-20 -top-20 h-80 w-80 rounded-full bg-[#b7f34b]/15 blur-3xl"/><div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-[#ff715b]/20 blur-3xl"/>
           <div className="relative h-[500px] w-full max-w-[500px]">
+            <span className="absolute right-2 top-0 z-20 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[.16em] text-white">Example product preview</span>
             <div className="absolute left-[3%] top-3 w-[220px] -rotate-3 rounded-[31px] bg-[#050907] p-2 shadow-2xl sm:left-[6%] sm:w-[245px]">
-              <div className="overflow-hidden rounded-[24px] bg-[#f6f4ec] text-[#10221c]"><div className="flex justify-between px-4 py-3 text-[8px] font-bold"><span>9:41</span><span>● ● ●</span></div><div className="flex h-[188px] items-end bg-[linear-gradient(160deg,rgba(8,22,17,.05),rgba(8,22,17,.65)),linear-gradient(135deg,#d0b39d,#617b6e)] p-4"><span className="rounded-full bg-[#10221c]/80 px-2 py-1 text-[8px] text-white">Verified details · Updated today</span></div><div className="p-4"><p className="text-[8px] font-bold tracking-[.12em] text-[#66736d]">PRIME REALTY · PUNE</p><h3 className="mt-2 text-xl font-black leading-tight tracking-[-.04em]">Sunlit 3 BHK in Baner</h3><div className="mt-2 flex items-center justify-between text-[10px]"><strong className="text-base">₹1.65 Cr</strong><span>For sale</span></div><div className="my-3 grid grid-cols-3 gap-1 text-center text-[8px]"><span className="rounded-lg bg-[#e8eadf] py-2">3 BHK</span><span className="rounded-lg bg-[#e8eadf] py-2">1,460 ft²</span><span className="rounded-lg bg-[#e8eadf] py-2">Ready</span></div><div className="rounded-xl bg-[#10221c] py-3 text-center text-[10px] font-black text-[#b7f34b]">Chat with Aakash on WhatsApp</div></div></div>
+              <div className="overflow-hidden rounded-[24px] bg-[#f6f4ec] text-[#10221c]"><div className="flex justify-between px-4 py-3 text-[8px] font-bold"><span>9:41</span><span>● ● ●</span></div><div className="flex h-[188px] items-end bg-[linear-gradient(160deg,rgba(8,22,17,.05),rgba(8,22,17,.65)),linear-gradient(135deg,#d0b39d,#617b6e)] p-4"><span className="rounded-full bg-[#10221c]/80 px-2 py-1 text-[8px] text-white">Details provided by broker</span></div><div className="p-4"><p className="text-[8px] font-bold tracking-[.12em] text-[#66736d]">PRIME REALTY · PUNE</p><h3 className="mt-2 text-xl font-black leading-tight tracking-[-.04em]">Sunlit 3 BHK in Baner</h3><div className="mt-2 flex items-center justify-between text-[10px]"><strong className="text-base">₹1.65 Cr</strong><span>For sale</span></div><div className="my-3 grid grid-cols-3 gap-1 text-center text-[8px]"><span className="rounded-lg bg-[#e8eadf] py-2">3 BHK</span><span className="rounded-lg bg-[#e8eadf] py-2">1,460 ft²</span><span className="rounded-lg bg-[#e8eadf] py-2">Ready</span></div><div className="rounded-xl bg-[#10221c] py-3 text-center text-[10px] font-black text-[#b7f34b]">Chat with Aakash on WhatsApp</div></div></div>
             </div>
-            <div className="absolute right-0 top-[82px] w-[205px] rotate-3 rounded-[20px] bg-[#f7fff4] p-4 text-[#10221c] shadow-2xl sm:w-[245px]"><div className="flex items-center justify-between text-[10px]"><b>Buyer activity</b><span className="rounded-full bg-[#e5f1df] px-2 py-1 text-[8px] text-[#477047]">LIVE</span></div><p className="mt-5 text-4xl font-black tracking-[-.06em]">38</p><p className="mt-1 text-[9px] text-[#66736d]">property views in the last 24 hours</p><div className="mt-4 flex h-16 items-end gap-1.5">{[24,39,31,60,48,88,70].map((height,i)=><span key={i} className={`flex-1 rounded-t ${i===5?'bg-[#ff715b]':'bg-[#10221c]/15'}`} style={{height:`${height}%`}}/>)}</div></div>
-            <div className="absolute bottom-6 right-1 w-[230px] rounded-2xl bg-[#b7f34b] p-4 text-[#10221c] shadow-2xl sm:right-[3%] sm:w-[260px]"><div className="flex items-center justify-between gap-2"><div><b className="block text-[11px]">New buyer enquiry</b><span className="text-[8px] opacity-70">Rohan · 3 BHK Baner · just now</span></div><span className="rounded-full bg-[#10221c] px-2.5 py-1.5 text-[8px] font-black text-[#b7f34b]">Follow up</span></div></div>
+            <div className="absolute right-0 top-[82px] w-[205px] rotate-3 rounded-[20px] bg-[#f7fff4] p-4 text-[#10221c] shadow-2xl sm:w-[245px]"><div className="flex items-center justify-between text-[10px]"><b>Example activity</b><span className="rounded-full bg-[#e5f1df] px-2 py-1 text-[8px] text-[#477047]">DEMO</span></div><p className="mt-5 text-4xl font-black tracking-[-.06em]">38</p><p className="mt-1 text-[9px] text-[#66736d]">sample property views</p><div className="mt-4 flex h-16 items-end gap-1.5">{[24,39,31,60,48,88,70].map((height,i)=><span key={i} className={`flex-1 rounded-t ${i===5?'bg-[#ff715b]':'bg-[#10221c]/15'}`} style={{height:`${height}%`}}/>)}</div></div>
+            <div className="absolute bottom-6 right-1 w-[230px] rounded-2xl bg-[#b7f34b] p-4 text-[#10221c] shadow-2xl sm:right-[3%] sm:w-[260px]"><div className="flex items-center justify-between gap-2"><div><b className="block text-[11px]">Example buyer enquiry</b><span className="text-[8px] opacity-70">WhatsApp click · sample listing</span></div><span className="rounded-full bg-[#10221c] px-2.5 py-1.5 text-[8px] font-black text-[#b7f34b]">Follow up</span></div></div>
           </div>
         </div>
       </section>

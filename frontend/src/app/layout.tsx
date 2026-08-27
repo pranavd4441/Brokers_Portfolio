@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import QueryProvider from "@/components/QueryProvider";
-import { Toaster } from "sonner";
+import AppProviders from "@/components/AppProviders";
 
 export const metadata: Metadata = {
   title: "PropertyOS — Broker Operating System",
@@ -20,22 +19,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full">
-      <body className="min-h-full flex flex-col bg-[#07090f] text-[#f0f4ff]">
-        <QueryProvider>
-          {children}
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              style: {
-                background: '#0d1117',
-                border: '1px solid rgba(255,255,255,0.08)',
-                color: '#f0f4ff',
-              },
-            }}
-            richColors
-          />
-        </QueryProvider>
+    <html lang="en" className="h-full" data-theme="light" suppressHydrationWarning>
+      <body className="min-h-full flex flex-col">
+        <AppProviders>{children}</AppProviders>
       </body>
     </html>
   );

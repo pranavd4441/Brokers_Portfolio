@@ -1,39 +1,76 @@
 @import "tailwindcss";
 
-/* ===================================================================
-   PROPERTYOS DESIGN SYSTEM
-   Inspired by: Linear, Notion, Airbnb, Luxury Real Estate
-   =================================================================== */
+/* PropertyOS practical design system. FINAL_UI_SPEC.md is authoritative. */
 
 :root {
-  /* Core dark palette */
-  --os-bg:           #07090f;
-  --os-surface:      #0d1117;
-  --os-surface-2:    #111622;
-  --os-surface-3:    #161d2e;
-  --os-border:       rgba(255,255,255,0.06);
-  --os-border-hover: rgba(255,255,255,0.12);
+  color-scheme: light;
+  --ui-bg: #f6f2e9;
+  --ui-surface: #fffdf8;
+  --ui-surface-muted: #eeeae0;
+  --ui-surface-raised: #ffffff;
+  --ui-text: #17211d;
+  --ui-text-muted: #66716b;
+  --ui-border: #d9d4c9;
+  --ui-border-strong: #bdb7aa;
+  --ui-focus: #1769aa;
+  --ui-brand: #174d3c;
+  --ui-brand-strong: #174d3c;
+  --ui-brand-ink: #ffffff;
+  --ui-accent-warm: #b97718;
+  --ui-terracotta: #c94f3d;
+  --ui-success: #2f7d53;
+  --ui-warning: #8a5b0b;
+  --ui-danger: #b33e32;
+  --ui-info: #1769aa;
+  --ui-overlay: rgba(23, 33, 29, 0.42);
+  --ui-shadow: 0 18px 45px rgba(53, 42, 21, 0.1);
 
-  /* Text hierarchy */
-  --os-text-primary:   #f0f4ff;
-  --os-text-secondary: #8892aa;
-  --os-text-muted:     #4a5470;
+  /* Compatibility aliases while existing route surfaces are migrated. */
+  --os-bg: var(--ui-bg);
+  --os-surface: var(--ui-surface);
+  --os-surface-2: var(--ui-surface-muted);
+  --os-surface-3: var(--ui-surface-raised);
+  --os-border: var(--ui-border);
+  --os-border-hover: var(--ui-border-strong);
+  --os-text-primary: var(--ui-text);
+  --os-text-secondary: var(--ui-text-muted);
+  --os-text-muted: var(--ui-text-muted);
+  --os-accent: var(--ui-brand-strong);
+  --os-accent-dim: color-mix(in srgb, var(--ui-brand) 12%, transparent);
+  --os-accent-glow: color-mix(in srgb, var(--ui-brand) 25%, transparent);
+  --os-available: var(--ui-success);
+  --os-negotiation: var(--ui-warning);
+  --os-site-visit: var(--ui-info);
+  --os-booked: #6558b3;
+  --os-sold: var(--ui-danger);
+}
 
-  /* Brand accent - Emerald */
-  --os-accent:       #16c784;
-  --os-accent-dim:   rgba(22,199,132,0.12);
-  --os-accent-glow:  rgba(22,199,132,0.25);
-
-  /* Status palette */
-  --os-available: #16c784;
-  --os-negotiation: #f59e0b;
-  --os-site-visit: #38bdf8;
-  --os-booked: #818cf8;
-  --os-sold: #f43f5e;
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --ui-bg: #0d1412;
+  --ui-surface: #15201c;
+  --ui-surface-muted: #1b2924;
+  --ui-surface-raised: #21302a;
+  --ui-text: #f4f1e8;
+  --ui-text-muted: #aab5af;
+  --ui-border: #314039;
+  --ui-border-strong: #52635b;
+  --ui-focus: #79bfff;
+  --ui-brand: #63c59b;
+  --ui-brand-strong: #63c59b;
+  --ui-brand-ink: #10211a;
+  --ui-accent-warm: #e0a84c;
+  --ui-terracotta: #f07b66;
+  --ui-success: #63c59b;
+  --ui-warning: #f1be63;
+  --ui-danger: #ff8a7b;
+  --ui-info: #79bfff;
+  --ui-overlay: rgba(0, 0, 0, 0.68);
+  --ui-shadow: 0 22px 55px rgba(0, 0, 0, 0.34);
 }
 
 @theme inline {
-  --font-sans: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: "Inter", "Noto Sans Devanagari", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
 }
 
@@ -47,11 +84,13 @@
 html {
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
+  background: var(--ui-bg);
 }
 
 body {
-  background-color: var(--os-bg);
-  color: var(--os-text-primary);
+  min-width: 320px;
+  background-color: var(--ui-bg);
+  color: var(--ui-text);
   font-family: var(--font-sans);
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
@@ -64,8 +103,8 @@ body {
 
 /* Primary glass card */
 .os-card {
-  background: var(--os-surface);
-  border: 1px solid var(--os-border);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 16px;
   transition: border-color 0.2s ease, transform 0.2s ease;
 }
@@ -75,7 +114,7 @@ body {
 
 /* Elevated glass */
 .os-glass {
-  background: rgba(13, 17, 23, 0.75);
+  background: color-mix(in srgb, var(--ui-surface) 88%, transparent);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border: 1px solid var(--os-border);
@@ -83,10 +122,10 @@ body {
 
 /* Frosted (for modals/overlays) */
 .os-frosted {
-  background: rgba(7, 9, 15, 0.92);
+  background: color-mix(in srgb, var(--ui-surface-raised) 94%, transparent);
   backdrop-filter: blur(32px) saturate(200%);
   -webkit-backdrop-filter: blur(32px) saturate(200%);
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid var(--ui-border);
 }
 
 /* ===================================================================
@@ -136,8 +175,8 @@ body {
   border-radius: 12px;
   font-size: 0.875rem;
   font-weight: 700;
-  color: #07090f;
-  background: var(--os-accent);
+  color: var(--ui-brand-ink);
+  background: var(--ui-brand);
   border: none;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -146,9 +185,9 @@ body {
   letter-spacing: -0.01em;
 }
 .os-btn-primary:hover {
-  background: #19e098;
+  filter: saturate(1.08) brightness(0.96);
   transform: translateY(-1px);
-  box-shadow: 0 8px 32px rgba(22,199,132,0.3);
+  box-shadow: 0 8px 32px var(--os-accent-glow);
 }
 .os-btn-primary:active {
   transform: translateY(0);
@@ -184,8 +223,8 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border-radius: 10px;
   font-size: 1rem;
   color: var(--os-text-secondary);
@@ -220,8 +259,58 @@ body {
   color: var(--os-text-muted);
 }
 .os-input:focus {
-  border-color: var(--os-accent);
-  box-shadow: 0 0 0 3px rgba(22, 199, 132, 0.12);
+  border-color: var(--ui-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-focus) 18%, transparent);
+}
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+
+button,
+[role='button'] {
+  touch-action: manipulation;
+}
+
+.os-page-shell {
+  min-height: 100vh;
+  background: var(--ui-bg);
+  color: var(--ui-text);
+}
+
+.os-surface {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: 16px;
+}
+
+.os-muted {
+  color: var(--ui-text-muted);
+}
+
+.os-dialog {
+  width: min(100% - 24px, 480px);
+  max-height: min(82vh, 720px);
+  margin: auto;
+  padding: 0;
+  overflow: hidden auto;
+  color: var(--ui-text);
+  background: var(--ui-surface-raised);
+  border: 1px solid var(--ui-border);
+  border-radius: 24px;
+  box-shadow: var(--ui-shadow);
+}
+
+.os-dialog::backdrop {
+  background: var(--ui-overlay);
+  backdrop-filter: blur(5px);
+}
+
+.os-toast {
+  border-color: var(--ui-border) !important;
+  background: var(--ui-surface-raised) !important;
+  color: var(--ui-text) !important;
 }
 
 .os-input-label {
@@ -329,7 +418,7 @@ body {
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.08);
+  background: color-mix(in srgb, var(--ui-text-muted) 35%, transparent);
   border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover {
@@ -365,6 +454,17 @@ body {
    SELECTION
    =================================================================== */
 ::selection {
-  background: rgba(22, 199, 132, 0.25);
-  color: var(--os-text-primary);
+  background: color-mix(in srgb, var(--ui-brand) 25%, transparent);
+  color: var(--ui-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

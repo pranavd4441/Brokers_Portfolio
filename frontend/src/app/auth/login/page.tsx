@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { AlertTriangle, ArrowRight, Building2, LoaderCircle } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
 
 export default function LoginPage() {
@@ -35,28 +36,29 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#07090f] px-4">
+    <main className="os-page-shell relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12">
       {/* Background grid */}
       <div
-        className="fixed inset-0 pointer-events-none opacity-[0.03]"
+        className="fixed inset-0 pointer-events-none opacity-[0.045]"
         style={{
-          backgroundImage: `linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)`,
+          backgroundImage: `linear-gradient(var(--ui-text) 1px, transparent 1px), linear-gradient(90deg, var(--ui-text) 1px, transparent 1px)`,
           backgroundSize: '40px 40px',
         }}
       />
+      <div className="pointer-events-none fixed -right-28 -top-28 h-80 w-80 rounded-full bg-[color-mix(in_srgb,var(--ui-brand)_13%,transparent)] blur-3xl" />
 
-      <div className="w-full max-w-sm os-slide-up">
+      <div className="relative w-full max-w-sm os-slide-up">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-2xl bg-[#16c784] flex items-center justify-center text-2xl mb-4">
-            🏢
+          <div className="mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-[var(--ui-brand)] text-[var(--ui-brand-ink)]">
+            <Building2 size={23} />
           </div>
-          <h1 className="text-2xl font-bold text-[#f0f4ff] tracking-tight">Welcome back</h1>
-          <p className="text-sm text-[#4a5470] mt-1">Sign in to your PropertyOS workspace</p>
+          <h1 className="text-2xl font-bold text-[var(--ui-text)] tracking-tight">Welcome back</h1>
+          <p className="mt-1 text-sm text-[var(--ui-text-muted)]">Sign in to your PropertyOS workspace</p>
         </div>
 
         {/* Card */}
-        <div className="os-card p-6">
+        <div className="os-card p-6 shadow-[var(--ui-shadow)]">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="email" className="os-input-label">Email address</label>
@@ -74,8 +76,8 @@ export default function LoginPage() {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label htmlFor="password" className="os-input-label">Password</label>
-                <Link href="/auth/forgot-password" className="text-[10px] text-[#16c784] hover:underline">
-                  Forgot password?
+                <Link href="/support" className="text-xs font-semibold text-[var(--ui-brand-strong)] hover:underline">
+                  Can&apos;t sign in? Get help
                 </Link>
               </div>
               <input
@@ -91,18 +93,19 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <div className="flex flex-col gap-3 p-4 rounded-xl bg-[rgba(244,63,94,0.08)] border border-[rgba(244,63,94,0.18)]">
+              <div className="flex flex-col gap-3 rounded-xl border border-[color-mix(in_srgb,var(--ui-danger)_24%,var(--ui-border))] bg-[color-mix(in_srgb,var(--ui-danger)_7%,var(--ui-surface))] p-4" role="alert">
                 <div className="flex items-start gap-2.5">
-                  <span className="text-sm mt-0.5">⚠️</span>
-                  <p className="text-xs text-[#f43f5e] font-medium leading-relaxed">{error}</p>
+                  <AlertTriangle size={17} className="mt-0.5 shrink-0 text-[var(--ui-danger)]" />
+                  <p className="text-xs font-medium leading-relaxed text-[var(--ui-danger)]">{error}</p>
                 </div>
                 {isNotRegistered && (
                   <Link
                     id="highlighted-signup-btn"
                     href="/auth/signup"
-                    className="os-btn-primary h-9 px-4 text-xs font-bold w-full text-center flex items-center justify-center gap-1.5 transition-all duration-300 animate-pulse border border-[#16c784]/20 shadow-lg shadow-[#16c784]/15"
+                    className="os-btn-primary min-h-11 w-full px-4 text-center text-xs font-bold"
                   >
-                    <span>Create a New Account</span>
+                    <span>Create a new account</span>
+                    <ArrowRight size={15} />
                   </Link>
                 )}
               </div>
@@ -116,7 +119,7 @@ export default function LoginPage() {
             >
               {loading ? (
                 <span className="flex items-center gap-2">
-                  <span className="w-4 h-4 border-2 border-[#07090f]/30 border-t-[#07090f] rounded-full animate-spin" />
+                  <LoaderCircle className="animate-spin" size={17} />
                   Signing in…
                 </span>
               ) : 'Sign In'}
@@ -125,21 +128,17 @@ export default function LoginPage() {
         </div>
 
         {/* Sign up link */}
-        <p className={`text-center text-xs text-[#4a5470] mt-5 transition-all duration-300 ${isNotRegistered ? 'scale-105 font-semibold' : ''}`}>
+        <p className="mt-5 text-center text-xs text-[var(--ui-text-muted)]">
           New to PropertyOS?{' '}
           <Link
             id="register-link"
             href="/auth/signup"
-            className={`text-[#16c784] hover:underline font-medium transition-all duration-300 ${
-              isNotRegistered
-                ? 'underline scale-110 inline-block px-2.5 py-1 rounded-lg bg-[#16c784]/10 border border-[#16c784]/25 animate-pulse'
-                : ''
-            }`}
+            className="font-bold text-[var(--ui-brand-strong)] hover:underline"
           >
             Create free account →
           </Link>
         </p>
       </div>
-    </div>
+    </main>
   );
 }
