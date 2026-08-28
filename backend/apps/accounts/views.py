@@ -127,8 +127,9 @@ class TenantLogoUploadView(generics.GenericAPIView):
         if uploaded.size > 2 * 1024 * 1024:
             return Response({"detail": "Logo must be smaller than 2 MB."}, status=400)
 
-        from django.core.files.storage import default_storage
         from pathlib import Path
+
+        from django.core.files.storage import default_storage
 
         suffix = Path(uploaded.name).suffix.lower() or ".png"
         path = default_storage.save(f"tenant-logos/{request.user.tenant_id}{suffix}", uploaded)
@@ -156,11 +157,11 @@ class OnboardingStatusView(generics.GenericAPIView):
         analytics_count = AnalyticsEvent.objects.filter(property__tenant=tenant).count()
         branding_complete = bool(tenant.name and tenant.logo_url and tenant.whatsapp_default_number)
         steps = [
-            {"id": "profile", "label": "Complete broker profile", "complete": bool(request.user.name and request.user.phone), "href": "/dashboard/settings/profile"},
-            {"id": "branding", "label": "Add logo and WhatsApp number", "complete": branding_complete, "href": "/dashboard/settings"},
+            {"id": "profile", "label": "Complete broker profile", "complete": bool(request.user.name and request.user.phone), "href": "/dashboard/onboarding"},
+            {"id": "branding", "label": "Add logo and WhatsApp number", "complete": branding_complete, "href": "/dashboard/onboarding"},
             {"id": "listing", "label": "Create your first listing", "complete": listing_count > 0, "href": "/dashboard/properties/new"},
-            {"id": "publish", "label": "Publish three property pages", "complete": listing_count >= 3, "href": "/dashboard"},
-            {"id": "share", "label": "Share with a real prospect", "complete": share_count >= 1, "href": "/dashboard"},
+            {"id": "publish", "label": "Publish three property pages", "complete": listing_count >= 3, "href": "/dashboard/properties"},
+            {"id": "share", "label": "Share with a real prospect", "complete": share_count >= 1, "href": "/dashboard/properties"},
             {"id": "results", "label": "Review buyer engagement", "complete": analytics_count >= 1, "href": "/dashboard"},
         ]
         return Response({

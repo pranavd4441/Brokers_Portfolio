@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Check, Copy, ExternalLink, MessageCircle, Send, X } from 'lucide-react';
 
 interface ShareModalProps {
   url: string;
@@ -10,178 +11,69 @@ interface ShareModalProps {
 }
 
 export default function ShareModal({ url, whatsappText, propertyTitle, onClose }: ShareModalProps) {
-  const [copied, setCopied] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const modalRef = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState<'link' | 'message' | null>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
   const plainText = useMemo(() => {
     if (!/%[0-9A-Fa-f]{2}/.test(whatsappText)) return whatsappText;
     try { return decodeURIComponent(whatsappText); } catch { return whatsappText; }
   }, [whatsappText]);
 
-  // Trap focus + ESC close
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
+    const handleKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
     document.addEventListener('keydown', handleKeyDown);
     document.body.style.overflow = 'hidden';
+    closeRef.current?.focus();
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
     };
   }, [onClose]);
 
-  const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-    } catch {
-      inputRef.current?.select();
-      document.execCommand('copy');
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-    }
+  const copy = async (value: string, type: 'link' | 'message') => {
+    await navigator.clipboard.writeText(value);
+    setCopied(type);
+    window.setTimeout(() => setCopied(null), 2200);
   };
 
-  const shareViaWhatsApp = () => {
-    const encoded = encodeURIComponent(plainText);
-    window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
+  const openWhatsApp = () => {
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(plainText)}`, '_blank', 'noopener,noreferrer');
   };
-
-  const shareViaTelegram = () => {
-    const encoded = encodeURIComponent(plainText);
-    window.open(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encoded}`, '_blank');
-  };
-
-  const shareViaEmail = () => {
-    const subject = encodeURIComponent(`Property Listing: ${propertyTitle}`);
-    const body = encodeURIComponent(plainText);
-    window.open(`mailto:?subject=${subject}&body=${body}`);
-  };
-
-  const shareChannels = [
-    {
-      id: 'whatsapp',
-      label: 'WhatsApp',
-      icon: '💬',
-      action: shareViaWhatsApp,
-      className: 'bg-[#25D366]/10 border-[#25D366]/20 text-[#25D366] hover:bg-[#25D366]/20',
-    },
-    {
-      id: 'telegram',
-      label: 'Telegram',
-      icon: '✈️',
-      action: shareViaTelegram,
-      className: 'bg-[#229ED9]/10 border-[#229ED9]/20 text-[#229ED9] hover:bg-[#229ED9]/20',
-    },
-    {
-      id: 'email',
-      label: 'Email',
-      icon: '✉️',
-      action: shareViaEmail,
-      className: 'bg-[#8892aa]/10 border-[#8892aa]/20 text-[#8892aa] hover:bg-[rgba(255,255,255,0.1)]',
-    },
-  ];
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-4 pb-safe"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Share property"
-    >
-      <div
-        ref={modalRef}
-        className="os-frosted w-full max-w-md rounded-t-3xl sm:rounded-2xl p-6 shadow-2xl os-slide-up"
-      >
-        {/* Handle bar (mobile) */}
-        <div className="flex justify-center mb-5 sm:hidden">
-          <div className="w-10 h-1 rounded-full bg-[rgba(255,255,255,0.12)]" />
+    <div role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }} className="fixed inset-0 z-[100] flex items-end justify-center bg-[var(--ui-overlay)] p-0 backdrop-blur-sm sm:items-center sm:p-4">
+      <section role="dialog" aria-modal="true" aria-labelledby="share-title" className="w-full max-w-lg overflow-hidden rounded-t-[28px] border border-[var(--ui-border)] bg-[var(--ui-surface-raised)] shadow-[var(--ui-shadow)] sm:rounded-[28px]">
+        <div className="flex items-start justify-between gap-4 border-b border-[var(--ui-border)] px-5 py-5 sm:px-6">
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-[var(--ui-success)]">Page published</p>
+            <h2 id="share-title" className="mt-1 text-xl font-black text-[var(--ui-text)]">Share with a real buyer</h2>
+            <p className="mt-1 truncate text-sm text-[var(--ui-text-muted)]">{propertyTitle}</p>
+          </div>
+          <button ref={closeRef} type="button" onClick={onClose} className="os-btn-icon" aria-label="Close sharing"><X size={19} /></button>
         </div>
 
-        {/* Header */}
-        <div className="flex items-start justify-between mb-5">
+        <div className="space-y-5 p-5 sm:p-6">
+          <div className="rounded-2xl border border-[color-mix(in_srgb,#1b8f4b_25%,var(--ui-border))] bg-[color-mix(in_srgb,#1b8f4b_7%,var(--ui-surface))] p-4">
+            <div className="flex items-center gap-3">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#1b8f4b] text-white"><MessageCircle size={21} /></span>
+              <div><p className="text-sm font-black text-[var(--ui-text)]">Readable WhatsApp message ready</p><p className="mt-0.5 text-xs text-[var(--ui-text-muted)]">Text and link are encoded exactly once.</p></div>
+            </div>
+            <button type="button" onClick={openWhatsApp} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#1b8f4b] px-5 text-sm font-black text-white hover:bg-[#15743d]"><Send size={17} /> Open WhatsApp</button>
+          </div>
+
           <div>
-            <h2 className="text-base font-bold text-[#f0f4ff]">Share Listing</h2>
-            <p className="text-xs text-[#4a5470] mt-0.5 truncate max-w-[260px]">{propertyTitle}</p>
+            <div className="mb-2 flex items-center justify-between gap-3"><p className="text-xs font-black uppercase tracking-[0.12em] text-[var(--ui-text-muted)]">Message preview</p><button type="button" onClick={() => void copy(plainText, 'message')} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-xs font-bold text-[var(--ui-brand-strong)] hover:bg-[var(--ui-surface-muted)]">{copied === 'message' ? <Check size={15} /> : <Copy size={15} />}{copied === 'message' ? 'Copied' : 'Copy message'}</button></div>
+            <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)] p-4 font-sans text-xs leading-6 text-[var(--ui-text)]">{plainText}</pre>
           </div>
-          <button
-            onClick={onClose}
-            className="os-btn-icon ml-2 flex-shrink-0"
-            aria-label="Close"
-          >
-            ✕
-          </button>
-        </div>
 
-        {/* Share guidance */}
-        <div className="flex items-center gap-2.5 p-3 rounded-xl bg-[#25D366]/8 border border-[#25D366]/12 mb-5">
-          <div className="w-7 h-7 rounded-lg bg-[#25D366]/15 flex items-center justify-center text-sm flex-shrink-0">
-            💬
+          <div className="flex items-center gap-2 rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface)] p-2 pl-3">
+            <ExternalLink size={16} className="shrink-0 text-[var(--ui-text-muted)]" />
+            <input type="url" readOnly value={url} aria-label="Public property link" className="min-w-0 flex-1 bg-transparent text-xs text-[var(--ui-text-muted)] outline-none" onFocus={(event) => event.currentTarget.select()} />
+            <button type="button" onClick={() => void copy(url, 'link')} className="os-btn-ghost h-11 shrink-0 px-3 text-xs">{copied === 'link' ? <Check size={15} /> : <Copy size={15} />}{copied === 'link' ? 'Copied' : 'Copy'}</button>
           </div>
-          <div>
-            <p className="text-xs font-semibold text-[#f0f4ff]">Your message is ready</p>
-            <p className="text-[10px] text-[#4a5470] mt-0.5">Choose WhatsApp to send one readable, pre-formatted message</p>
-          </div>
-          <div className="ml-auto">
-            <span className="text-[10px] font-bold text-[#25D366] bg-[#25D366]/10 px-2 py-0.5 rounded-full">READY</span>
-          </div>
-        </div>
 
-        {/* Share channels */}
-        <div className="grid grid-cols-3 gap-2 mb-5">
-          {shareChannels.map(channel => (
-            <button
-              key={channel.id}
-              id={`share-${channel.id}-btn`}
-              onClick={channel.action}
-              className={`flex flex-col items-center justify-center gap-2 p-3.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${channel.className}`}
-            >
-              <span className="text-xl">{channel.icon}</span>
-              <span>{channel.label}</span>
-            </button>
-          ))}
+          <p className="text-center text-xs leading-5 text-[var(--ui-text-muted)]">Send it to five genuine prospects. Page views and contact clicks will appear in your Action Desk.</p>
         </div>
-
-        {/* Divider */}
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex-1 h-px bg-[rgba(255,255,255,0.06)]" />
-          <span className="text-[10px] text-[#4a5470] font-medium uppercase tracking-wider">or copy link</span>
-          <div className="flex-1 h-px bg-[rgba(255,255,255,0.06)]" />
-        </div>
-
-        {/* Copy link row */}
-        <div className="flex items-center gap-2">
-          <div className="flex-1 relative">
-            <input
-              ref={inputRef}
-              type="url"
-              readOnly
-              value={url}
-              onClick={() => inputRef.current?.select()}
-              className="w-full h-10 bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-xl px-3 text-xs text-[#8892aa] font-mono focus:outline-none focus:border-[#16c784]/40 transition-colors truncate"
-            />
-          </div>
-          <button
-            id="copy-link-btn"
-            onClick={copyLink}
-            className={`h-10 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer flex-shrink-0 ${
-              copied
-                ? 'bg-[#16c784]/20 text-[#16c784] border border-[#16c784]/30'
-                : 'bg-[rgba(255,255,255,0.06)] text-[#f0f4ff] border border-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.1)]'
-            }`}
-          >
-            {copied ? '✓ Copied' : 'Copy'}
-          </button>
-        </div>
-
-        {/* Analytics notice */}
-        <p className="text-[10px] text-[#4a5470] text-center mt-4">
-          Views and clicks are tracked automatically for this link
-        </p>
-      </div>
+      </section>
     </div>
   );
 }

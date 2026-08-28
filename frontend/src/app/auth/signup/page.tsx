@@ -1,222 +1,195 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import {
+  AlertTriangle,
+  ArrowRight,
+  Building2,
+  Check,
+  Languages,
+  LoaderCircle,
+  MessageCircle,
+  ShieldCheck,
+} from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
-import { authTokens } from '@/lib/api';
 
-export default function SignupPage() {
+type SignupLocale = 'en' | 'hi' | 'mr';
+
+function SignupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { signup, error, clearError } = useAuthStore();
-
   const [companyName, setCompanyName] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [locale, setLocale] = useState('en');
-  const [referralCode, setReferralCode] = useState('');
+  const [locale, setLocale] = useState<SignupLocale>('en');
+  const [referralCode, setReferralCode] = useState(searchParams.get('ref') || '');
   const [marketingConsent, setMarketingConsent] = useState(true);
   const [termsConsent, setTermsConsent] = useState(false);
-  const [source, setSource] = useState('direct');
   const [loading, setLoading] = useState(false);
   const [clientError, setClientError] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Redirect if already logged in
-    if (authTokens.getAccessToken()) {
-      router.push('/dashboard');
-    }
-    clearError();
-    const params = new URLSearchParams(window.location.search);
-    setSource(params.get('source') || 'direct');
-    setReferralCode(params.get('ref') || '');
-  }, [router, clearError]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setClientError(null);
     clearError();
 
-    if (!companyName || !name || !phone || !email || !password) {
-      setClientError('Please fill in all fields.');
+    if (!companyName.trim() || !name.trim() || !phone.trim() || !email.trim() || !password) {
+      setClientError('Complete all required fields to create your workspace.');
       return;
     }
     if (!termsConsent) {
-      setClientError('Please accept the Terms and Privacy Notice to create your workspace.');
+      setClientError('Accept the Terms and Privacy Notice to continue.');
       return;
     }
-
     if (password.length < 8) {
-      setClientError('Password must be at least 8 characters long.');
+      setClientError('Use a password with at least 8 characters.');
       return;
     }
 
     setLoading(true);
     try {
-      await signup(companyName, name, email, password, phone, { source, referralCode, locale, marketingConsent });
-      router.push('/dashboard');
-    } catch (err: any) {
-      // Error is handled in the store
+      await signup(companyName.trim(), name.trim(), email.trim(), password, phone.trim(), {
+        source: searchParams.get('source') || 'direct',
+        referralCode: referralCode.trim(),
+        locale,
+        marketingConsent,
+      });
+      router.push('/dashboard/onboarding');
+    } catch {
+      // The auth store exposes the API message above the form.
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="relative flex min-h-screen flex-col justify-center py-12 sm:px-6 lg:px-8 bg-[#0b0f19] overflow-hidden">
-      {/* Premium Background Decorative Orbs */}
-      <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full bg-emerald-900/15 blur-[120px] pointer-events-none"></div>
-      <div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-teal-900/15 blur-[120px] pointer-events-none"></div>
-      
-      {/* Decorative Grid Lines */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-20 pointer-events-none"></div>
-
-      <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
-        {/* Logo Icon */}
-        <div className="flex justify-center">
-          <div className="flex items-center gap-2 h-12 px-4 rounded-xl bg-emerald-950/40 border border-emerald-800/30 text-emerald-400 font-semibold tracking-wide text-lg glow-emerald">
-            <span className="text-2xl">🏢</span> Property<span className="text-slate-200 font-bold">OS</span>
-          </div>
-        </div>
-        <h2 className="mt-6 text-center text-3xl font-extrabold tracking-tight text-white">
-          Start your 14-day assisted pilot
-        </h2>
-        <p className="mt-2 text-center text-sm text-slate-400">
-          No card required · First three listings assisted · Or{' '}
-          <Link href="/auth/login" className="font-semibold text-emerald-400 hover:text-emerald-300 transition-colors">
-            sign in to your existing account
+    <main className="os-page-shell min-h-screen px-4 py-8 sm:py-12">
+      <div className="mx-auto grid w-full max-w-5xl overflow-hidden rounded-[28px] border border-[var(--ui-border)] bg-[var(--ui-surface)] shadow-[var(--ui-shadow)] lg:grid-cols-[0.85fr_1.15fr]">
+        <section className="relative overflow-hidden bg-[var(--ui-brand)] p-7 text-[var(--ui-brand-ink)] sm:p-10">
+          <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full border border-current opacity-10" />
+          <Link href="/" className="relative flex items-center gap-3 text-lg font-black">
+            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[var(--ui-brand-ink)] text-[var(--ui-brand)]">
+              <Building2 size={22} />
+            </span>
+            PropertyOS
           </Link>
-        </p>
-      </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10 px-4 sm:px-0">
-        <div className="glass py-8 px-6 shadow-2xl rounded-2xl sm:px-10 border border-slate-800/55">
-          <form className="space-y-5" onSubmit={handleSubmit}>
-            
-            {/* Display Errors */}
+          <div className="relative mt-14 max-w-md">
+            <p className="text-xs font-black uppercase tracking-[0.16em] opacity-70">Founding Broker Program</p>
+            <h1 className="mt-4 text-3xl font-black leading-tight tracking-[-0.04em] sm:text-4xl">
+              Publish your first professional property page today.
+            </h1>
+            <p className="mt-4 text-sm leading-7 opacity-75">
+              Start with your real brokerage identity. We will guide you through branding, your first listing and the first WhatsApp share.
+            </p>
+          </div>
+
+          <div className="relative mt-10 space-y-4 text-sm font-semibold">
+            {[
+              '14-day assisted pilot with no card',
+              'Your branding on every property page',
+              'Buyer actions visible in your workspace',
+            ].map((benefit) => (
+              <div key={benefit} className="flex items-center gap-3">
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-[color-mix(in_srgb,var(--ui-brand-ink)_14%,transparent)]"><Check size={15} /></span>
+                {benefit}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="p-5 sm:p-8 lg:p-10">
+          <div className="mb-7">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-[var(--ui-brand-strong)]">Create broker workspace</p>
+            <h2 className="mt-2 text-2xl font-black tracking-[-0.03em] text-[var(--ui-text)]">Start your assisted pilot</h2>
+            <p className="mt-2 text-sm text-[var(--ui-text-muted)]">
+              Already registered? <Link href="/auth/login" className="font-bold text-[var(--ui-brand-strong)] hover:underline">Sign in</Link>
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
             {(clientError || error) && (
-              <div className="rounded-lg bg-red-950/40 border border-red-800/30 p-4 text-sm text-red-300 flex items-center gap-2">
-                <span>⚠️</span>
+              <div role="alert" className="flex items-start gap-3 rounded-xl border border-[color-mix(in_srgb,var(--ui-danger)_25%,var(--ui-border))] bg-[color-mix(in_srgb,var(--ui-danger)_7%,var(--ui-surface))] p-4 text-sm font-medium text-[var(--ui-danger)]">
+                <AlertTriangle className="mt-0.5 shrink-0" size={18} />
                 <span>{clientError || error}</span>
               </div>
             )}
 
             <div>
-              <label htmlFor="companyName" className="block text-sm font-medium text-slate-300">
-                Brokerage / Agency Name
-              </label>
-              <div className="mt-1">
-                <input
-                  id="companyName"
-                  name="companyName"
-                  type="text"
-                  required
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  className="appearance-none block w-full px-4 py-3 rounded-xl border border-slate-800 bg-slate-950/60 placeholder-slate-500 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                  placeholder="e.g., Prime Realtors"
-                />
+              <label htmlFor="companyName" className="os-input-label">Brokerage or agency name</label>
+              <input id="companyName" autoComplete="organization" value={companyName} onChange={(event) => setCompanyName(event.target.value)} className="os-input" placeholder="Prime Realty Pune" required />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="name" className="os-input-label">Your full name</label>
+                <input id="name" autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} className="os-input" placeholder="Aakash Kulkarni" required />
+              </div>
+              <div>
+                <label htmlFor="phone" className="os-input-label">Phone and WhatsApp</label>
+                <input id="phone" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} className="os-input" placeholder="+91 98765 43210" required />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div><label htmlFor="locale" className="block text-sm font-medium text-slate-300">Support language</label><select id="locale" value={locale} onChange={(e)=>setLocale(e.target.value)} className="mt-1 block w-full px-3 py-3 rounded-xl border border-slate-800 bg-slate-950/60 text-white"><option value="en">English</option><option value="hi">हिंदी</option><option value="mr">मराठी</option></select></div>
-              <div><label htmlFor="referral" className="block text-sm font-medium text-slate-300">Referral code</label><input id="referral" value={referralCode} onChange={(e)=>setReferralCode(e.target.value.toUpperCase())} placeholder="Optional" className="mt-1 block w-full px-3 py-3 rounded-xl border border-slate-800 bg-slate-950/60 text-white" /></div>
-            </div>
-
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium text-slate-300">
-                Full Name
-              </label>
-              <div className="mt-1">
-                <input
-                  id="name"
-                  name="name"
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="appearance-none block w-full px-4 py-3 rounded-xl border border-slate-800 bg-slate-950/60 placeholder-slate-500 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                  placeholder="Rajesh Sharma"
-                />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="email" className="os-input-label">Email address</label>
+                <input id="email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="os-input" placeholder="you@example.com" required />
+              </div>
+              <div>
+                <label htmlFor="password" className="os-input-label">Password</label>
+                <input id="password" type="password" autoComplete="new-password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} className="os-input" placeholder="At least 8 characters" required />
               </div>
             </div>
 
-            <div>
-              <label htmlFor="phone" className="block text-sm font-medium text-slate-300">
-                Phone / WhatsApp Number
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                <span className="os-input-label flex items-center gap-2"><Languages size={15} /> Support language</span>
+                <select value={locale} onChange={(event) => setLocale(event.target.value as SignupLocale)} className="os-input min-h-12">
+                  <option value="en">English</option>
+                  <option value="hi">हिंदी</option>
+                  <option value="mr">मराठी</option>
+                </select>
               </label>
-              <div className="mt-1">
-                <input
-                  id="phone"
-                  name="phone"
-                  type="text"
-                  required
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="appearance-none block w-full px-4 py-3 rounded-xl border border-slate-800 bg-slate-950/60 placeholder-slate-500 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                  placeholder="e.g., +919876543210"
-                />
-              </div>
+              <label className="block">
+                <span className="os-input-label">Referral code</span>
+                <input value={referralCode} onChange={(event) => setReferralCode(event.target.value.toUpperCase())} className="os-input" placeholder="Optional" />
+              </label>
             </div>
 
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-300">
-                Email address
-              </label>
-              <div className="mt-1">
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="appearance-none block w-full px-4 py-3 rounded-xl border border-slate-800 bg-slate-950/60 placeholder-slate-500 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                  placeholder="rajesh@primerealtors.com"
-                />
-              </div>
-            </div>
+            <label className="flex min-h-11 items-start gap-3 text-xs leading-5 text-[var(--ui-text-muted)]">
+              <input type="checkbox" checked={termsConsent} onChange={(event) => setTermsConsent(event.target.checked)} className="mt-1 h-4 w-4 accent-[var(--ui-brand-strong)]" />
+              <span>I agree to the <Link href="/terms" className="font-bold text-[var(--ui-brand-strong)]">Terms</Link> and <Link href="/privacy" className="font-bold text-[var(--ui-brand-strong)]">Privacy Notice</Link> required to operate my workspace.</span>
+            </label>
+            <label className="flex min-h-11 items-start gap-3 text-xs leading-5 text-[var(--ui-text-muted)]">
+              <input type="checkbox" checked={marketingConsent} onChange={(event) => setMarketingConsent(event.target.checked)} className="mt-1 h-4 w-4 accent-[var(--ui-brand-strong)]" />
+              <span>Send pilot guidance and demo reminders on WhatsApp. I can opt out anytime.</span>
+            </label>
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-300">
-                Password
-              </label>
-              <div className="mt-1">
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="appearance-none block w-full px-4 py-3 rounded-xl border border-slate-800 bg-slate-950/60 placeholder-slate-500 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                  placeholder="Min. 8 characters"
-                />
-              </div>
-            </div>
+            <button type="submit" disabled={loading} className="os-btn-primary min-h-12 w-full disabled:cursor-wait disabled:opacity-60">
+              {loading ? <><LoaderCircle className="animate-spin" size={18} />Creating workspace…</> : <>Create workspace <ArrowRight size={17} /></>}
+            </button>
 
-            <label className="flex items-start gap-3 text-xs text-slate-400"><input type="checkbox" checked={termsConsent} onChange={(e)=>setTermsConsent(e.target.checked)} className="mt-0.5"/><span>I agree to the <Link href="/terms" className="text-emerald-400">Terms</Link> and <Link href="/privacy" className="text-emerald-400">Privacy Notice</Link>, including processing needed to operate my workspace.</span></label>
-            <label className="flex items-start gap-3 text-xs text-slate-400"><input type="checkbox" checked={marketingConsent} onChange={(e)=>setMarketingConsent(e.target.checked)} className="mt-0.5"/><span>Send me pilot guidance, product tips and demo reminders on WhatsApp. I can opt out anytime.</span></label>
-
-            <div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-lg text-sm font-semibold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
-                {loading ? (
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                ) : (
-                  'Start Free Assisted Pilot'
-                )}
-              </button>
+            <div className="grid gap-2 border-t border-[var(--ui-border)] pt-5 text-xs text-[var(--ui-text-muted)] sm:grid-cols-2">
+              <p className="flex items-center gap-2"><ShieldCheck size={15} className="text-[var(--ui-success)]" /> Account data stays private</p>
+              <p className="flex items-center gap-2"><MessageCircle size={15} className="text-[var(--ui-success)]" /> WhatsApp-first setup support</p>
             </div>
           </form>
-        </div>
+        </section>
       </div>
-    </div>
+    </main>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<main className="os-page-shell grid min-h-screen place-items-center"><LoaderCircle className="animate-spin text-[var(--ui-brand-strong)]" /></main>}>
+      <SignupForm />
+    </Suspense>
   );
 }

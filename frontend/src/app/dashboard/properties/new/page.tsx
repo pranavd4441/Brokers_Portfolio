@@ -1,668 +1,290 @@
 'use client';
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchApi } from '@/lib/api';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
+  Building2,
+  Check,
+  Dumbbell,
+  House,
+  ImagePlus,
+  LandPlot,
+  LoaderCircle,
+  MapPin,
+  ParkingCircle,
+  ShieldCheck,
+  Sparkles,
+  Store,
+  UploadCloud,
+  X,
+  Zap,
+} from 'lucide-react';
 import AIAssistantModal from '@/components/AIAssistantModal';
+import { fetchApi } from '@/lib/api';
 
-// ─── Types ──────────────────────────────────────────────────────
-interface PropertyFormData {
-  // Step 1: Property basics
+interface PropertyForm {
   title: string;
-  property_type: string;
-  status: string;
+  property_type: 'APARTMENT' | 'VILLA' | 'PLOT' | 'COMMERCIAL';
   price: string;
   bhk: string;
   square_feet: string;
-  
-  // Step 2: Location
-  address: string;
   area: string;
   city: string;
-  state: string;
-  pincode: string;
-
-  // Step 3: Details
+  location_address: string;
   description: string;
   amenities: string[];
-
-  // Step 4: Media (handled separately)
   images: File[];
 }
 
-// ─── Constants ──────────────────────────────────────────────────
+interface CreatedProperty {
+  id: string;
+}
+
 const PROPERTY_TYPES = [
-  { value: 'APARTMENT', label: 'Apartment', icon: '🏢' },
-  { value: 'VILLA',     label: 'Villa',     icon: '🏡' },
-  { value: 'PLOT',      label: 'Plot',      icon: '🌿' },
-  { value: 'COMMERCIAL',label: 'Commercial',icon: '🏬' },
+  { value: 'APARTMENT' as const, label: 'Apartment', Icon: Building2 },
+  { value: 'VILLA' as const, label: 'Villa or house', Icon: House },
+  { value: 'PLOT' as const, label: 'Land or plot', Icon: LandPlot },
+  { value: 'COMMERCIAL' as const, label: 'Commercial', Icon: Store },
 ];
-
-const STATUSES = [
-  { value: 'AVAILABLE',   label: 'Available',   color: '#16c784' },
-  { value: 'NEGOTIATION', label: 'Negotiation', color: '#f59e0b' },
-  { value: 'SITE_VISIT',  label: 'Site Visit',  color: '#38bdf8' },
-  { value: 'BOOKED',      label: 'Booked',      color: '#818cf8' },
-];
-
-const BHK_OPTIONS = ['1', '2', '3', '4', '5', '6+'];
 
 const AMENITIES = [
-  { id: 'gym',         label: 'Gym',           icon: '🏋️' },
-  { id: 'pool',        label: 'Swimming Pool',  icon: '🏊' },
-  { id: 'parking',     label: 'Car Parking',    icon: '🚗' },
-  { id: 'security',    label: '24/7 Security',  icon: '🔒' },
-  { id: 'clubhouse',   label: 'Club House',     icon: '🏛️' },
-  { id: 'garden',      label: 'Garden',         icon: '🌳' },
-  { id: 'lift',        label: 'Lift/Elevator',  icon: '🛗' },
-  { id: 'power_backup',label: 'Power Backup',   icon: '⚡' },
-  { id: 'wifi',        label: 'High-Speed WiFi',icon: '📶' },
-  { id: 'cctv',        label: 'CCTV',           icon: '📷' },
-  { id: 'intercom',    label: 'Intercom',       icon: '📟' },
-  { id: 'fire_safety', label: 'Fire Safety',    icon: '🔥' },
+  { value: 'parking', label: 'Parking', Icon: ParkingCircle },
+  { value: 'security', label: '24/7 security', Icon: ShieldCheck },
+  { value: 'gym', label: 'Gym', Icon: Dumbbell },
+  { value: 'power_backup', label: 'Power backup', Icon: Zap },
+  { value: 'lift', label: 'Lift', Icon: Building2 },
+  { value: 'garden', label: 'Garden', Icon: Sparkles },
 ];
 
-const WIZARD_STEPS = [
-  { id: 1, label: 'Basics',   icon: '⊕' },
-  { id: 2, label: 'Location', icon: '📍' },
-  { id: 3, label: 'Details',  icon: '✍' },
-  { id: 4, label: 'Photos',   icon: '📷' },
+const STEPS = [
+  { number: 1, label: 'Essential facts' },
+  { number: 2, label: 'Location and story' },
+  { number: 3, label: 'Photos and publish' },
 ];
 
-// ─── Step progress indicator ────────────────────────────────────
-function WizardProgress({ currentStep, totalSteps }: { currentStep: number; totalSteps: number }) {
+function formatPrice(value: string) {
+  const number = Number(value.replace(/,/g, ''));
+  if (!Number.isFinite(number) || number <= 0) return 'Add a price';
+  if (number >= 10_000_000) return `₹${(number / 10_000_000).toFixed(2)} Cr`;
+  if (number >= 100_000) return `₹${(number / 100_000).toFixed(2)} L`;
+  return `₹${number.toLocaleString('en-IN')}`;
+}
+
+function Progress({ current }: { current: number }) {
   return (
-    <div className="flex items-center gap-0 mb-8">
-      {WIZARD_STEPS.map((step, idx) => {
-        const isCompleted = currentStep > step.id;
-        const isCurrent   = currentStep === step.id;
-        return (
-          <React.Fragment key={step.id}>
-            <div className="flex flex-col items-center">
-              <div
-                className={`
-                  w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold
-                  transition-all duration-300
-                  ${isCompleted
-                    ? 'bg-[#16c784] text-[#07090f]'
-                    : isCurrent
-                      ? 'bg-[#0d1117] border-2 border-[#16c784] text-[#16c784]'
-                      : 'bg-[#0d1117] border border-[rgba(255,255,255,0.06)] text-[#4a5470]'
-                  }
-                `}
-              >
-                {isCompleted ? '✓' : step.icon}
-              </div>
-              <span
-                className={`hidden sm:block text-[10px] font-semibold mt-1.5 transition-colors duration-200 ${
-                  isCurrent ? 'text-[#16c784]' : isCompleted ? 'text-[#8892aa]' : 'text-[#4a5470]'
-                }`}
-              >
-                {step.label}
-              </span>
-            </div>
-            {idx < WIZARD_STEPS.length - 1 && (
-              <div
-                className={`flex-1 h-0.5 mx-2 rounded-full transition-colors duration-300 ${
-                  currentStep > step.id ? 'bg-[#16c784]' : 'bg-[rgba(255,255,255,0.06)]'
-                }`}
-              />
-            )}
-          </React.Fragment>
-        );
-      })}
+    <div className="flex items-center rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface)] p-3 sm:p-4">
+      {STEPS.map((item, index) => (
+        <div key={item.number} className={`flex min-w-0 items-center ${index < STEPS.length - 1 ? 'flex-1' : ''}`}>
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border text-xs font-black ${current > item.number ? 'border-[var(--ui-success)] bg-[var(--ui-success)] text-white' : current === item.number ? 'border-[var(--ui-brand-strong)] bg-[var(--ui-surface)] text-[var(--ui-brand-strong)]' : 'border-[var(--ui-border)] bg-[var(--ui-surface-muted)] text-[var(--ui-text-muted)]'}`}>
+              {current > item.number ? <Check size={16} /> : item.number}
+            </span>
+            <span className={`hidden whitespace-nowrap text-xs font-bold sm:block ${current === item.number ? 'text-[var(--ui-text)]' : 'text-[var(--ui-text-muted)]'}`}>{item.label}</span>
+          </div>
+          {index < STEPS.length - 1 && <span className={`mx-2 h-px min-w-4 flex-1 sm:mx-4 ${current > item.number ? 'bg-[var(--ui-success)]' : 'bg-[var(--ui-border)]'}`} />}
+        </div>
+      ))}
     </div>
   );
 }
 
-// ─── Image dropzone ─────────────────────────────────────────────
-function ImageDropzone({
-  files,
-  onAdd,
-  onRemove,
-}: {
-  files: File[];
-  onAdd: (files: File[]) => void;
-  onRemove: (index: number) => void;
-}) {
+function PhotoPicker({ files, onChange, onError }: { files: File[]; onChange: (files: File[]) => void; onError: (message: string) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [dragging, setDragging] = useState(false);
+  const previews = useMemo(() => files.map((file) => ({ file, url: URL.createObjectURL(file) })), [files]);
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragging(false);
-    const dropped = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
-    if (dropped.length > 0) onAdd(dropped);
+  useEffect(() => () => previews.forEach((preview) => URL.revokeObjectURL(preview.url)), [previews]);
+
+  const addFiles = (incoming: FileList | File[]) => {
+    const candidates = Array.from(incoming);
+    const invalid = candidates.find((file) => !file.type.startsWith('image/') || file.size > 10 * 1024 * 1024);
+    if (invalid) {
+      onError('Use JPG, PNG or WebP images smaller than 10 MB each.');
+      return;
+    }
+    if (files.length + candidates.length > 12) {
+      onError('You can publish up to 12 photos in this version.');
+      return;
+    }
+    onError('');
+    onChange([...files, ...candidates]);
   };
-
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = Array.from(e.target.files ?? []).filter(f => f.type.startsWith('image/'));
-    if (selected.length > 0) onAdd(selected);
-    if (inputRef.current) inputRef.current.value = '';
-  };
-
-  const previews = files.map(f => URL.createObjectURL(f));
 
   return (
     <div className="space-y-4">
-      {/* Drop zone */}
-      <div
-        onClick={() => inputRef.current?.click()}
-        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={handleDrop}
-        className={`
-          relative flex flex-col items-center justify-center gap-3 p-10
-          border-2 border-dashed rounded-2xl cursor-pointer transition-all duration-200
-          ${dragging
-            ? 'border-[#16c784] bg-[#16c784]/8 scale-[1.01]'
-            : 'border-[rgba(255,255,255,0.1)] bg-[rgba(255,255,255,0.02)] hover:border-[rgba(255,255,255,0.2)] hover:bg-[rgba(255,255,255,0.03)]'
-          }
-        `}
-      >
-        <div className="w-12 h-12 rounded-2xl bg-[#0d1117] border border-[rgba(255,255,255,0.06)] flex items-center justify-center text-2xl">
-          📷
-        </div>
-        <div className="text-center">
-          <p className="text-sm font-semibold text-[#f0f4ff]">Drop photos here</p>
-          <p className="text-xs text-[#4a5470] mt-1">or click to browse • JPG, PNG, WebP up to 10MB each</p>
-        </div>
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={handleFileInput}
-        />
-      </div>
+      <button type="button" onClick={() => inputRef.current?.click()} className="flex min-h-36 w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-[var(--ui-border-strong)] bg-[var(--ui-surface-muted)] px-6 text-center hover:border-[var(--ui-brand-strong)]">
+        <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[var(--ui-surface)] text-[var(--ui-brand-strong)]"><UploadCloud size={23} /></span>
+        <span><strong className="block text-sm text-[var(--ui-text)]">Choose photos from your phone</strong><span className="mt-1 block text-xs text-[var(--ui-text-muted)]">The first photo becomes the cover · up to 12 images</span></span>
+      </button>
+      <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" multiple className="hidden" onChange={(event) => { if (event.target.files) addFiles(event.target.files); event.target.value = ''; }} />
 
-      {/* Preview grid */}
       {previews.length > 0 && (
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-          {previews.map((src, idx) => (
-            <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden bg-[#0d1117]">
-              <img src={src} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
-              {idx === 0 && (
-                <div className="absolute top-1.5 left-1.5 bg-[#16c784] text-[#07090f] text-[9px] font-bold px-1.5 py-0.5 rounded-md">
-                  Cover
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={() => onRemove(idx)}
-                className="absolute top-1.5 right-1.5 w-6 h-6 bg-[#07090f]/80 rounded-full flex items-center justify-center text-[#8892aa] hover:text-[#f43f5e] text-xs transition-all opacity-0 group-hover:opacity-100"
-              >
-                ✕
-              </button>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {previews.map((preview, index) => (
+            <div key={`${preview.file.name}-${preview.file.lastModified}`} className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]">
+              <Image src={preview.url} alt={`Property photo ${index + 1}`} fill unoptimized className="object-cover" />
+              {index === 0 && <span className="absolute left-2 top-2 rounded-full bg-[var(--ui-brand)] px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-[var(--ui-brand-ink)]">Cover</span>}
+              <button type="button" aria-label={`Remove photo ${index + 1}`} onClick={() => onChange(files.filter((_, fileIndex) => fileIndex !== index))} className="absolute right-2 top-2 grid h-9 w-9 place-items-center rounded-full bg-black/65 text-white"><X size={16} /></button>
             </div>
           ))}
-          {/* Add more */}
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            className="aspect-square rounded-xl border-2 border-dashed border-[rgba(255,255,255,0.08)] flex items-center justify-center text-[#4a5470] hover:text-[#8892aa] hover:border-[rgba(255,255,255,0.14)] transition-all text-xl"
-          >
-            +
-          </button>
+          <button type="button" onClick={() => inputRef.current?.click()} className="grid min-h-28 place-items-center rounded-2xl border-2 border-dashed border-[var(--ui-border)] text-[var(--ui-text-muted)] hover:border-[var(--ui-brand-strong)] hover:text-[var(--ui-brand-strong)]"><span className="flex items-center gap-2 text-xs font-bold"><ImagePlus size={18} /> Add more</span></button>
         </div>
       )}
     </div>
   );
 }
 
-// ─── Main wizard ─────────────────────────────────────────────────
 export default function NewPropertyPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [step, setStep] = useState(1);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [showAiModal, setShowAiModal] = useState(false);
-
-  const [form, setForm] = useState<PropertyFormData>({
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showAi, setShowAi] = useState(false);
+  const [form, setForm] = useState<PropertyForm>({
     title: '',
     property_type: 'APARTMENT',
-    status: 'AVAILABLE',
     price: '',
     bhk: '2',
     square_feet: '',
-    address: '',
     area: '',
-    city: '',
-    state: '',
-    pincode: '',
+    city: 'Pune',
+    location_address: '',
     description: '',
     amenities: [],
     images: [],
   });
 
-  const updateField = useCallback(<K extends keyof PropertyFormData>(key: K, value: PropertyFormData[K]) => {
-    setForm(prev => ({ ...prev, [key]: value }));
-  }, []);
+  const update = <Key extends keyof PropertyForm>(key: Key, value: PropertyForm[Key]) => setForm((current) => ({ ...current, [key]: value }));
+  const residential = form.property_type === 'APARTMENT' || form.property_type === 'VILLA';
 
-  const toggleAmenity = (id: string) => {
-    setForm(prev => ({
-      ...prev,
-      amenities: prev.amenities.includes(id)
-        ? prev.amenities.filter(a => a !== id)
-        : [...prev.amenities, id],
-    }));
+  const validateStep = () => {
+    if (step === 1 && (!form.title.trim() || Number(form.price) <= 0)) return 'Add a clear title and asking price to continue.';
+    if (step === 2 && (!form.area.trim() || !form.city.trim() || form.description.trim().length < 20)) return 'Add the locality, city and a description of at least 20 characters.';
+    return null;
   };
 
-  // ── Validation per step ──
-  const canAdvance = (): boolean => {
-    if (step === 1) return !!(form.title && form.price && form.property_type);
-    if (step === 2) return !!(form.area && form.city);
-    if (step === 3) return form.description.length >= 20;
-    return true;
+  const continueForward = () => {
+    const message = validateStep();
+    setError(message);
+    if (!message) setStep((current) => Math.min(3, current + 1));
   };
 
-  // ── Submit ──
-  const handleSubmit = async () => {
-    setIsSubmitting(true);
-    setSubmitError(null);
+  const toggleAmenity = (amenity: string) => update('amenities', form.amenities.includes(amenity) ? form.amenities.filter((item) => item !== amenity) : [...form.amenities, amenity]);
+
+  const publish = async () => {
+    setError(null);
+    const validation = validateStep();
+    if (validation) { setError(validation); return; }
+    setSubmitting(true);
+    let propertyId: string | null = null;
+    let uploadFailures = 0;
     try {
-      const payload: Record<string, unknown> = {
-        title: form.title,
-        property_type: form.property_type,
-        status: form.status,
-        price: parseFloat(form.price.replace(/,/g, '')),
-        bhk: form.bhk ? parseInt(form.bhk) : null,
-        square_feet: form.square_feet ? parseFloat(form.square_feet) : null,
-        address: form.address,
-        area: form.area,
-        city: form.city,
-        state: form.state,
-        pincode: form.pincode,
-        description: form.description,
-        amenities: form.amenities,
-      };
-
-      const property = await fetchApi('/properties/', {
+      const property = await fetchApi<CreatedProperty>('/properties/', {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          title: form.title.trim(),
+          property_type: form.property_type,
+          status: 'AVAILABLE',
+          price: Number(form.price.replace(/,/g, '')),
+          bhk: residential && form.bhk ? Number.parseInt(form.bhk, 10) : null,
+          square_feet: form.square_feet ? Number(form.square_feet) : null,
+          area: form.area.trim(),
+          city: form.city.trim(),
+          location_address: form.location_address.trim() || null,
+          description: form.description.trim(),
+          amenities: form.amenities,
+        }),
       });
+      propertyId = property.id;
 
-      // Upload images sequentially
-      if (form.images.length > 0) {
-        for (let i = 0; i < form.images.length; i++) {
-          const fd = new FormData();
-          fd.append('images', form.images[i]);
-          fd.append('display_order', String(i));
-          await fetchApi(`/properties/${property.id}/images/`, {
-            method: 'POST',
-            body: fd,
-          });
+      for (let index = 0; index < form.images.length; index += 1) {
+        const data = new FormData();
+        data.append('images', form.images[index]);
+        data.append('display_order', String(index));
+        try {
+          await fetchApi(`/properties/${property.id}/images/`, { method: 'POST', body: data });
+        } catch {
+          uploadFailures += 1;
         }
       }
 
-      queryClient.invalidateQueries({ queryKey: ['properties'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboardMetrics'] });
-
-      // Redirect to dashboard with success
-      router.push('/dashboard?created=1');
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
-      setSubmitError(message);
-      setIsSubmitting(false);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['properties'] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboardMetrics'] }),
+        queryClient.invalidateQueries({ queryKey: ['onboarding'] }),
+      ]);
+      const suffix = uploadFailures ? `?published=1&upload_failed=${uploadFailures}` : '?published=1';
+      router.push(`/dashboard/properties/${property.id}${suffix}`);
+    } catch (caught: unknown) {
+      if (propertyId) {
+        router.push(`/dashboard/properties/${propertyId}?published=1&upload_failed=${form.images.length}`);
+        return;
+      }
+      setError(caught instanceof Error ? caught.message : 'The listing could not be published. Check your connection and try again.');
+      setSubmitting(false);
     }
   };
 
   return (
-    <div className="max-w-2xl mx-auto os-fade-in">
-      {/* Page header */}
-      <div className="mb-8">
-        <button
-          onClick={() => step > 1 ? setStep(s => s - 1) : router.push('/dashboard')}
-          className="flex items-center gap-1.5 text-xs text-[#4a5470] hover:text-[#8892aa] transition-colors mb-4"
-        >
-          ← {step > 1 ? 'Back' : 'Dashboard'}
-        </button>
-        <h1 className="text-2xl font-bold tracking-tight text-[#f0f4ff]">New Listing</h1>
-        <p className="text-sm text-[#4a5470] mt-1">
-          Step {step} of {WIZARD_STEPS.length} — {WIZARD_STEPS[step - 1].label}
-        </p>
+    <div className="mx-auto max-w-4xl pb-8">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <Link href="/dashboard/properties" className="mb-3 inline-flex min-h-11 items-center gap-2 text-sm font-bold text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]"><ArrowLeft size={17} /> Listings</Link>
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-[var(--ui-brand-strong)]">Listing studio</p>
+          <h1 className="mt-2 text-2xl font-black tracking-[-0.035em] text-[var(--ui-text)] sm:text-3xl">Create a buyer-ready property page</h1>
+          <p className="mt-2 text-sm text-[var(--ui-text-muted)]">Add broker-provided facts once, publish, then share one clean link.</p>
+        </div>
+        <span className="rounded-full border border-[var(--ui-border)] bg-[var(--ui-surface)] px-3 py-2 text-xs font-bold text-[var(--ui-text-muted)]">Step {step} of 3</span>
       </div>
 
-      {/* Progress */}
-      <WizardProgress currentStep={step} totalSteps={WIZARD_STEPS.length} />
+      <Progress current={step} />
 
-      {/* Step panels */}
-      <div className="os-card p-6 os-fade-in" key={step}>
-        {/* ── STEP 1: Basics ──────────────────────────────── */}
+      {error && (
+        <div role="alert" className="mt-5 flex items-start gap-3 rounded-xl border border-[color-mix(in_srgb,var(--ui-danger)_24%,var(--ui-border))] bg-[color-mix(in_srgb,var(--ui-danger)_7%,var(--ui-surface))] p-4 text-sm font-medium text-[var(--ui-danger)]"><AlertTriangle className="mt-0.5 shrink-0" size={18} /><span>{error}</span></div>
+      )}
+
+      <section className="os-card mt-5 p-5 sm:p-7">
         {step === 1 && (
           <div className="space-y-6">
-            {/* Type selector */}
-            <div>
-              <label className="os-input-label mb-3 block">Property Type</label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {PROPERTY_TYPES.map(type => (
-                  <button
-                    key={type.value}
-                    type="button"
-                    onClick={() => updateField('property_type', type.value)}
-                    className={`flex flex-col items-center gap-2 p-3.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
-                      form.property_type === type.value
-                        ? 'bg-[#16c784]/10 border-[#16c784]/40 text-[#16c784]'
-                        : 'bg-[rgba(255,255,255,0.02)] border-[rgba(255,255,255,0.06)] text-[#8892aa] hover:border-[rgba(255,255,255,0.12)] hover:text-[#f0f4ff]'
-                    }`}
-                  >
-                    <span className="text-xl">{type.icon}</span>
-                    <span>{type.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Title */}
-            <div>
-              <label htmlFor="title" className="os-input-label">Listing Title *</label>
-              <input
-                id="title"
-                type="text"
-                placeholder="e.g. Spacious 3BHK with Sea View in Bandra"
-                value={form.title}
-                onChange={e => updateField('title', e.target.value)}
-                className="os-input"
-                maxLength={120}
-              />
-              <div className="text-[10px] text-[#4a5470] mt-1.5 text-right">{form.title.length}/120</div>
-            </div>
-
-            {/* Price + BHK row */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="price" className="os-input-label">Price (₹) *</label>
-                <input
-                  id="price"
-                  type="number"
-                  placeholder="5000000"
-                  value={form.price}
-                  onChange={e => updateField('price', e.target.value)}
-                  className="os-input"
-                  min="0"
-                />
-                {form.price && parseFloat(form.price) > 0 && (
-                  <p className="text-[11px] text-[#16c784] mt-1 font-medium">
-                    {parseFloat(form.price) >= 10_000_000
-                      ? `₹${(parseFloat(form.price) / 10_000_000).toFixed(2)} Cr`
-                      : parseFloat(form.price) >= 100_000
-                        ? `₹${(parseFloat(form.price) / 100_000).toFixed(2)} L`
-                        : `₹${parseFloat(form.price).toLocaleString()}`}
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="os-input-label">Square Feet</label>
-                <input
-                  type="number"
-                  placeholder="1200"
-                  value={form.square_feet}
-                  onChange={e => updateField('square_feet', e.target.value)}
-                  className="os-input"
-                  min="0"
-                />
-              </div>
-            </div>
-
-            {/* BHK chips (only for residential) */}
-            {['APARTMENT', 'VILLA'].includes(form.property_type) && (
-              <div>
-                <label className="os-input-label mb-2 block">BHK Configuration</label>
-                <div className="flex flex-wrap gap-2">
-                  {BHK_OPTIONS.map(opt => (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => updateField('bhk', opt)}
-                      className={`h-9 px-4 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                        form.bhk === opt
-                          ? 'bg-[#16c784]/10 border-[#16c784]/40 text-[#16c784]'
-                          : 'bg-[rgba(255,255,255,0.02)] border-[rgba(255,255,255,0.06)] text-[#8892aa] hover:border-[rgba(255,255,255,0.12)]'
-                      }`}
-                    >
-                      {opt} BHK
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Status */}
-            <div>
-              <label className="os-input-label mb-2 block">Listing Status</label>
-              <div className="flex flex-wrap gap-2">
-                {STATUSES.map(s => (
-                  <button
-                    key={s.value}
-                    type="button"
-                    onClick={() => updateField('status', s.value)}
-                    className={`h-9 px-4 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                      form.status === s.value
-                        ? 'text-[#07090f] border-transparent'
-                        : 'bg-[rgba(255,255,255,0.02)] border-[rgba(255,255,255,0.06)] text-[#8892aa] hover:border-[rgba(255,255,255,0.12)]'
-                    }`}
-                    style={form.status === s.value ? { background: s.color } : {}}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <div><p className="text-xs font-black uppercase tracking-[0.12em] text-[var(--ui-brand-strong)]">Essential facts</p><h2 className="mt-2 text-xl font-black text-[var(--ui-text)]">What should buyers understand first?</h2></div>
+            <fieldset><legend className="os-input-label mb-3">Property type</legend><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{PROPERTY_TYPES.map(({ value, label, Icon }) => <button key={value} type="button" onClick={() => update('property_type', value)} className={`flex min-h-24 flex-col items-center justify-center gap-2 rounded-2xl border p-3 text-xs font-bold ${form.property_type === value ? 'border-[var(--ui-brand-strong)] bg-[color-mix(in_srgb,var(--ui-brand)_8%,var(--ui-surface))] text-[var(--ui-brand-strong)]' : 'border-[var(--ui-border)] bg-[var(--ui-surface-muted)] text-[var(--ui-text-muted)]'}`}><Icon size={22} /><span>{label}</span></button>)}</div></fieldset>
+            <div><label htmlFor="title" className="os-input-label">Listing title</label><input id="title" value={form.title} onChange={(event) => update('title', event.target.value)} className="os-input" maxLength={120} placeholder="Sunlit 3 BHK near Balewadi High Street" /><p className="mt-2 text-xs text-[var(--ui-text-muted)]">Use the strongest real fact. Avoid all-caps and generic “premium property” wording.</p></div>
+            <div className="grid gap-5 sm:grid-cols-2"><div><label htmlFor="price" className="os-input-label">Asking price in rupees</label><input id="price" type="number" inputMode="decimal" min="1" value={form.price} onChange={(event) => update('price', event.target.value)} className="os-input" placeholder="16500000" /><p className="mt-2 text-xs font-bold text-[var(--ui-success)]">{formatPrice(form.price)}</p></div><div><label htmlFor="square-feet" className="os-input-label">Carpet or usable area (ft²)</label><input id="square-feet" type="number" inputMode="decimal" min="1" value={form.square_feet} onChange={(event) => update('square_feet', event.target.value)} className="os-input" placeholder="1460" /></div></div>
+            {residential && <fieldset><legend className="os-input-label mb-3">Configuration</legend><div className="flex flex-wrap gap-2">{['1', '2', '3', '4', '5', '6'].map((option) => <button key={option} type="button" onClick={() => update('bhk', option)} className={`min-h-11 rounded-xl border px-4 text-sm font-bold ${form.bhk === option ? 'border-[var(--ui-brand-strong)] bg-[var(--ui-brand)] text-[var(--ui-brand-ink)]' : 'border-[var(--ui-border)] text-[var(--ui-text-muted)]'}`}>{option} BHK</button>)}</div></fieldset>}
           </div>
         )}
 
-        {/* ── STEP 2: Location ─────────────────────────────── */}
         {step === 2 && (
-          <div className="space-y-5">
-            <div>
-              <label htmlFor="address" className="os-input-label">Street Address</label>
-              <input
-                id="address"
-                type="text"
-                placeholder="Flat 12, Sea Pearl, Versova Road"
-                value={form.address}
-                onChange={e => updateField('address', e.target.value)}
-                className="os-input"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="area" className="os-input-label">Area / Locality *</label>
-                <input
-                  id="area"
-                  type="text"
-                  placeholder="Bandra West"
-                  value={form.area}
-                  onChange={e => updateField('area', e.target.value)}
-                  className="os-input"
-                />
-              </div>
-              <div>
-                <label htmlFor="city" className="os-input-label">City *</label>
-                <input
-                  id="city"
-                  type="text"
-                  placeholder="Mumbai"
-                  value={form.city}
-                  onChange={e => updateField('city', e.target.value)}
-                  className="os-input"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="state" className="os-input-label">State</label>
-                <input
-                  id="state"
-                  type="text"
-                  placeholder="Maharashtra"
-                  value={form.state}
-                  onChange={e => updateField('state', e.target.value)}
-                  className="os-input"
-                />
-              </div>
-              <div>
-                <label htmlFor="pincode" className="os-input-label">Pincode</label>
-                <input
-                  id="pincode"
-                  type="text"
-                  placeholder="400050"
-                  value={form.pincode}
-                  onChange={e => updateField('pincode', e.target.value)}
-                  className="os-input"
-                  maxLength={6}
-                />
-              </div>
-            </div>
-
-            {/* Map placeholder */}
-            <div className="h-28 rounded-xl bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] flex items-center justify-center gap-2 text-[#4a5470]">
-              <span className="text-lg">🗺️</span>
-              <span className="text-xs">Map preview will appear after publishing</span>
-            </div>
-          </div>
-        )}
-
-        {/* ── STEP 3: Details ───────────────────────────────── */}
-        {step === 3 && (
           <div className="space-y-6">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label htmlFor="description" className="os-input-label !mb-0">Description *</label>
-                <button
-                  type="button"
-                  onClick={() => setShowAiModal(true)}
-                  className="text-xs font-bold text-[#16c784] hover:text-[#19e098] transition-colors flex items-center gap-1 cursor-pointer"
-                >
-                  <span>✨</span> Generate with AI
-                </button>
-              </div>
-              <textarea
-                id="description"
-                placeholder="Describe the property — mention highlights, unique features, nearby landmarks, and what makes this a great investment or home…"
-                value={form.description}
-                onChange={e => updateField('description', e.target.value)}
-                className="os-input min-h-[140px] resize-y leading-relaxed"
-                minLength={20}
-              />
-              <div className={`text-[10px] mt-1.5 text-right ${form.description.length >= 20 ? 'text-[#16c784]' : 'text-[#4a5470]'}`}>
-                {form.description.length} chars {form.description.length < 20 ? `(${20 - form.description.length} more required)` : '✓'}
-              </div>
-            </div>
-
-            {/* Amenities */}
-            <div>
-              <label className="os-input-label mb-3 block">Amenities</label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {AMENITIES.map(a => {
-                  const selected = form.amenities.includes(a.id);
-                  return (
-                    <button
-                      key={a.id}
-                      type="button"
-                      onClick={() => toggleAmenity(a.id)}
-                      className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-medium border transition-all cursor-pointer text-left ${
-                        selected
-                          ? 'bg-[#16c784]/10 border-[#16c784]/30 text-[#16c784]'
-                          : 'bg-[rgba(255,255,255,0.02)] border-[rgba(255,255,255,0.06)] text-[#8892aa] hover:border-[rgba(255,255,255,0.12)] hover:text-[#f0f4ff]'
-                      }`}
-                    >
-                      <span className="text-sm">{a.icon}</span>
-                      <span className="truncate">{a.label}</span>
-                      {selected && <span className="ml-auto text-[10px]">✓</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <div><p className="text-xs font-black uppercase tracking-[0.12em] text-[var(--ui-brand-strong)]">Location and story</p><h2 className="mt-2 text-xl font-black text-[var(--ui-text)]">Give buyers enough context to respond</h2></div>
+            <div className="grid gap-5 sm:grid-cols-2"><div><label htmlFor="area" className="os-input-label">Locality</label><input id="area" value={form.area} onChange={(event) => update('area', event.target.value)} className="os-input" placeholder="Baner" /></div><div><label htmlFor="city" className="os-input-label">City</label><input id="city" value={form.city} onChange={(event) => update('city', event.target.value)} className="os-input" placeholder="Pune" /></div></div>
+            <div><label htmlFor="address" className="os-input-label">Exact address for your private record</label><div className="relative"><MapPin className="absolute left-4 top-4 text-[var(--ui-text-muted)]" size={17} /><input id="address" value={form.location_address} onChange={(event) => update('location_address', event.target.value)} className="os-input pl-11" placeholder="Building, road or landmark (optional)" /></div><p className="mt-2 flex items-start gap-2 text-xs leading-5 text-[var(--ui-text-muted)]"><ShieldCheck className="mt-0.5 shrink-0 text-[var(--ui-success)]" size={15} />Public pages show only locality and city. You decide when to share exact directions.</p></div>
+            <div><div className="mb-2 flex flex-wrap items-center justify-between gap-3"><label htmlFor="description" className="os-input-label mb-0">Property description</label><button type="button" onClick={() => setShowAi(true)} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-xs font-black text-[var(--ui-brand-strong)] hover:bg-[var(--ui-surface-muted)]"><Sparkles size={16} /> Help me write</button></div><textarea id="description" value={form.description} onChange={(event) => update('description', event.target.value)} className="os-input min-h-40 resize-y leading-7" placeholder="Describe the layout, condition, view, key convenience and who this property suits. Keep every claim factual." /><p className={`mt-2 text-right text-xs font-bold ${form.description.trim().length >= 20 ? 'text-[var(--ui-success)]' : 'text-[var(--ui-text-muted)]'}`}>{form.description.trim().length}/20 minimum</p></div>
+            <fieldset><legend className="os-input-label mb-3">Amenities provided by broker</legend><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{AMENITIES.map(({ value, label, Icon }) => { const selected = form.amenities.includes(value); return <button key={value} type="button" onClick={() => toggleAmenity(value)} className={`flex min-h-12 items-center gap-2 rounded-xl border px-3 text-left text-xs font-bold ${selected ? 'border-[var(--ui-brand-strong)] bg-[color-mix(in_srgb,var(--ui-brand)_8%,var(--ui-surface))] text-[var(--ui-brand-strong)]' : 'border-[var(--ui-border)] text-[var(--ui-text-muted)]'}`}><Icon size={17} />{label}{selected && <Check className="ml-auto" size={15} />}</button>; })}</div></fieldset>
           </div>
         )}
 
-        {/* ── STEP 4: Photos ───────────────────────────────── */}
-        {step === 4 && (
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm text-[#f0f4ff] font-semibold mb-1">Add Property Photos</p>
-              <p className="text-xs text-[#4a5470]">
-                Listings with 5+ photos get 3× more views. The first photo is your cover image.
-              </p>
-            </div>
-            <ImageDropzone
-              files={form.images}
-              onAdd={files => updateField('images', [...form.images, ...files])}
-              onRemove={idx => updateField('images', form.images.filter((_, i) => i !== idx))}
-            />
-            <p className="text-[10px] text-[#4a5470]">
-              {form.images.length} photo{form.images.length !== 1 ? 's' : ''} selected
-              {form.images.length === 0 && ' — you can add photos later too'}
-            </p>
-
-            {/* Error */}
-            {submitError && (
-              <div className="flex items-start gap-2.5 p-3.5 bg-[rgba(244,63,94,0.08)] border border-[rgba(244,63,94,0.2)] rounded-xl">
-                <span className="text-base">⚠️</span>
-                <p className="text-xs text-[#f43f5e] leading-relaxed">{submitError}</p>
-              </div>
-            )}
+        {step === 3 && (
+          <div className="space-y-7">
+            <div><p className="text-xs font-black uppercase tracking-[0.12em] text-[var(--ui-brand-strong)]">Photos and publish</p><h2 className="mt-2 text-xl font-black text-[var(--ui-text)]">Finish the page buyers will receive</h2><p className="mt-2 text-sm text-[var(--ui-text-muted)]">Photos are optional, but three or more make the first share much more useful.</p></div>
+            <PhotoPicker files={form.images} onChange={(files) => update('images', files)} onError={(message) => setError(message || null)} />
+            <div className="rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)] p-5"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--ui-text-muted)]">Ready to publish</p><h3 className="mt-2 text-lg font-black text-[var(--ui-text)]">{form.title || 'Your property title'}</h3><p className="mt-1 text-sm text-[var(--ui-text-muted)]">{[form.area, form.city].filter(Boolean).join(', ') || 'Locality and city'}</p></div><strong className="text-xl font-black text-[var(--ui-text)]">{formatPrice(form.price)}</strong></div><div className="mt-5 flex flex-wrap gap-2 text-xs font-bold text-[var(--ui-text-muted)]"><span className="rounded-full bg-[var(--ui-surface)] px-3 py-2">{PROPERTY_TYPES.find((item) => item.value === form.property_type)?.label}</span>{residential && <span className="rounded-full bg-[var(--ui-surface)] px-3 py-2">{form.bhk} BHK</span>}<span className="rounded-full bg-[var(--ui-surface)] px-3 py-2">{form.images.length} photos</span></div></div>
           </div>
         )}
+      </section>
+
+      <div className="sticky bottom-20 z-20 mt-5 flex items-center justify-between gap-3 rounded-2xl border border-[var(--ui-border)] bg-[color-mix(in_srgb,var(--ui-surface-raised)_94%,transparent)] p-3 shadow-[var(--ui-shadow)] backdrop-blur-xl lg:bottom-4">
+        <button type="button" onClick={() => step === 1 ? router.push('/dashboard/properties') : setStep((current) => current - 1)} disabled={submitting} className="os-btn-ghost px-4"><ArrowLeft size={17} /><span className="hidden sm:inline">{step === 1 ? 'Cancel' : 'Back'}</span></button>
+        {step < 3 ? <button type="button" onClick={continueForward} className="os-btn-primary min-w-32">Continue <ArrowRight size={17} /></button> : <button type="button" onClick={publish} disabled={submitting} className="os-btn-primary min-w-44 disabled:cursor-wait disabled:opacity-60">{submitting ? <><LoaderCircle className="animate-spin" size={18} />Publishing…</> : <><Check size={18} />Publish listing</>}</button>}
       </div>
 
-      {/* ── Footer actions ── */}
-      <div className="flex items-center justify-between mt-6">
-        <button
-          type="button"
-          onClick={() => step > 1 ? setStep(s => s - 1) : router.push('/dashboard')}
-          className="os-btn-ghost text-sm"
-        >
-          {step > 1 ? '← Back' : 'Cancel'}
-        </button>
-
-        <div className="flex items-center gap-2">
-          {step < 4 ? (
-            <button
-              type="button"
-              onClick={() => setStep(s => s + 1)}
-              disabled={!canAdvance()}
-              className="os-btn-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none text-sm"
-            >
-              Continue →
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-              className="os-btn-primary text-sm min-w-[140px]"
-            >
-              {isSubmitting ? (
-                <span className="flex items-center gap-2">
-                  <span className="w-4 h-4 border-2 border-[#07090f]/30 border-t-[#07090f] rounded-full animate-spin" />
-                  Publishing…
-                </span>
-              ) : (
-                '🚀 Publish Listing'
-              )}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {showAiModal && (
-        <AIAssistantModal
-          propertyType={form.property_type}
-          price={form.price}
-          bhk={form.bhk}
-          area={form.area}
-          city={form.city}
-          onApplyTitle={(title) => updateField('title', title)}
-          onApplyDescription={(desc) => updateField('description', desc)}
-          onClose={() => setShowAiModal(false)}
-        />
-      )}
+      {showAi && <AIAssistantModal propertyType={form.property_type} price={form.price} bhk={form.bhk} area={form.area} city={form.city} onApplyTitle={(title) => update('title', title)} onApplyDescription={(description) => update('description', description)} onClose={() => setShowAi(false)} />}
     </div>
   );
 }

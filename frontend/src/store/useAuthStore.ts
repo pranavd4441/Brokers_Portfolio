@@ -24,6 +24,12 @@ export interface UserSession {
   tenant: TenantBranding;
 }
 
+interface AuthResponse {
+  access: string;
+  refresh: string;
+  user: UserSession;
+}
+
 interface AuthState {
   user: UserSession | null;
   isAuthenticated: boolean;
@@ -31,10 +37,11 @@ interface AuthState {
   error: string | null;
   
   login: (email: string, password: string) => Promise<UserSession>;
-  signup: (companyName: string, name: string, email: string, password: string, phone: string, options?: {source?: string; city?: string; referralCode?: string; locale?: string; marketingConsent?: boolean}) => Promise<any>;
+  signup: (companyName: string, name: string, email: string, password: string, phone: string, options?: {source?: string; city?: string; referralCode?: string; locale?: string; marketingConsent?: boolean}) => Promise<AuthResponse>;
   logout: () => void;
   loadUser: () => Promise<UserSession | null>;
   updateTenantBranding: (branding: Partial<TenantBranding>) => void;
+  updateUserProfile: (profile: Pick<UserSession, 'name' | 'phone'>) => void;
   clearError: () => void;
 }
 
@@ -49,12 +56,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (email, password) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await fetchApi('/auth/login/', {
+      const response = await fetchApi<AuthResponse>('/auth/login/', {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       });
       
-      const { access, refresh, user } = response;
+      const { access, refresh } = response;
       authTokens.setTokens(access, refresh);
       
       // Load full user details to populate tenant branding
@@ -66,9 +73,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false 
       });
       return fullUser;
-    } catch (err: any) {
+    } catch (err: unknown) {
       set({ 
-        error: err.message || 'Login failed. Please check credentials.', 
+        error: err instanceof Error ? err.message : 'Login failed. Please check credentials.',
         isLoading: false 
       });
       throw err;
@@ -78,7 +85,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signup: async (companyName, name, email, password, phone, options = {}) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await fetchApi('/auth/register/', {
+      const response = await fetchApi<AuthResponse>('/auth/register/', {
         method: 'POST',
         body: JSON.stringify({
           company_name: companyName,
@@ -104,9 +111,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false 
       });
       return response;
-    } catch (err: any) {
+    } catch (err: unknown) {
       set({ 
-        error: err.message || 'Registration failed.', 
+        error: err instanceof Error ? err.message : 'Registration failed.',
         isLoading: false 
       });
       throw err;
@@ -142,7 +149,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false 
       });
       return fullUser;
-    } catch (err) {
+    } catch {
       // Access token might be invalid/expired, try to refresh
       authTokens.clearTokens();
       set({ 
@@ -166,6 +173,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
         }
       });
+    }
+  },
+
+  updateUserProfile: (profile) => {
+    const currentUser = get().user;
+    if (currentUser) {
+      set({ user: { ...currentUser, ...profile } });
     }
   }
 }));

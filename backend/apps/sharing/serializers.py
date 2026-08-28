@@ -51,13 +51,12 @@ class ShareLinkSerializer(serializers.ModelSerializer):
         prop_type_label = prop.get_property_type_display()
 
         message = (
-            f"🏡 *Premium Property Alert!*\n\n"
-            f"*Title:* {prop.title}\n"
-            f"*Details:* {bhk_str}{prop_type_label} in {prop.area}, {prop.city}\n"
-            f"*Price:* {formatted_price}\n\n"
-            f"📸 View high-res photos, exact location, and direct contact details here:\n"
+            f"🏡 *{prop.title}*\n\n"
+            f"📍 {bhk_str}{prop_type_label} in {prop.area}, {prop.city}\n"
+            f"💰 {formatted_price}\n\n"
+            f"View photos, property details, and contact the listing broker:\n"
             f"{full_url}\n\n"
-            f"Interested? Let's chat! 💬"
+            f"Interested? Reply here and I’ll help with the next step."
         )
 
         # API responses return readable text. Each client encodes it exactly once

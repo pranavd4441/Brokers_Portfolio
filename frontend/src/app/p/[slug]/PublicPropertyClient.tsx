@@ -1,6 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
 import {
   ArrowRight, BadgeCheck, BedDouble, Building2, CalendarCheck,
   Camera, Check, ChevronLeft, ChevronRight, Expand, Home, MapPin,
@@ -50,17 +52,17 @@ function Gallery({ images, title }: { images: PublicProperty['images']; title: s
   return <>
     <div className={`grid gap-2 ${images.length > 1 ? 'md:grid-cols-[minmax(0,1fr)_220px]' : ''}`}>
       <button type="button" onClick={() => setOpen(true)} onTouchStart={event=>setTouchStart(event.touches[0].clientX)} onTouchEnd={event=>{if(touchStart===null)return;const diff=touchStart-event.changedTouches[0].clientX;if(Math.abs(diff)>50)(diff>0?next:prev)();setTouchStart(null);}} className="group relative h-[330px] overflow-hidden rounded-[28px] bg-[#dfe4da] text-left sm:h-[470px]">
-        <img src={images[active].url} alt={`${title}, photograph ${active + 1}`} className="h-full w-full object-cover transition duration-700 group-hover:scale-[1.025]"/>
+        <Image src={images[active].url} alt={`${title}, photograph ${active + 1}`} fill unoptimized priority className="object-cover transition duration-700 group-hover:scale-[1.025]"/>
         <span className="absolute inset-0 bg-gradient-to-t from-[#10221c]/45 via-transparent to-transparent"/>
         <span className="absolute bottom-4 left-4 flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 text-xs font-black text-[#10221c] shadow-lg"><Expand size={14}/>View gallery</span>
         <span className="absolute bottom-4 right-4 flex items-center gap-1.5 rounded-full bg-[#10221c]/85 px-3 py-2 text-xs font-bold text-white"><Camera size={14}/>{active + 1} / {images.length}</span>
       </button>
       {images.length > 1 && <div className="hidden gap-2 md:grid md:grid-rows-3">
-        {images.slice(1,4).map((image,index)=><button type="button" key={image.id} onClick={()=>{setActive(index+1);setOpen(true);}} className="relative overflow-hidden rounded-[20px] bg-[#dfe4da]"><img src={image.thumbnail_url || image.url} alt={`${title}, photograph ${index+2}`} className="h-full w-full object-cover transition hover:scale-105"/>{index===2 && images.length>4 && <span className="absolute inset-0 grid place-items-center bg-[#10221c]/65 text-sm font-black text-white">+{images.length-4} photos</span>}</button>)}
+        {images.slice(1,4).map((image,index)=><button type="button" key={image.id} onClick={()=>{setActive(index+1);setOpen(true);}} className="relative overflow-hidden rounded-[20px] bg-[#dfe4da]"><Image src={image.thumbnail_url || image.url} alt={`${title}, photograph ${index+2}`} fill unoptimized className="object-cover transition hover:scale-105"/>{index===2 && images.length>4 && <span className="absolute inset-0 grid place-items-center bg-[#10221c]/65 text-sm font-black text-white">+{images.length-4} photos</span>}</button>)}
       </div>}
     </div>
     {images.length>1 && <div className="mt-3 flex justify-center gap-1.5 md:hidden">{images.map((_,index)=><button key={index} aria-label={`Show photo ${index+1}`} onClick={()=>setActive(index)} className={`h-1.5 rounded-full transition-all ${index===active?'w-6 bg-[#10221c]':'w-1.5 bg-[#10221c]/20'}`}/>)}</div>}
-    {open && <div className="fixed inset-0 z-[120] grid place-items-center bg-[#07110e]/95 p-3 backdrop-blur-md" onClick={()=>setOpen(false)}><button aria-label="Close gallery" className="absolute right-5 top-5 grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white" onClick={()=>setOpen(false)}><X size={18}/></button><div className="relative w-full max-w-6xl" onClick={event=>event.stopPropagation()}><img src={images[active].url} alt={`${title}, photograph ${active+1}`} className="mx-auto max-h-[86vh] w-full rounded-2xl object-contain"/>{images.length>1&&<><button aria-label="Previous photo" onClick={prev} className="absolute left-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/50 text-white"><ChevronLeft/></button><button aria-label="Next photo" onClick={next} className="absolute right-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/50 text-white"><ChevronRight/></button></>}</div></div>}
+    {open && <div className="fixed inset-0 z-[120] grid place-items-center bg-[#07110e]/95 p-3 backdrop-blur-md" onClick={()=>setOpen(false)}><button aria-label="Close gallery" className="absolute right-5 top-5 grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white" onClick={()=>setOpen(false)}><X size={18}/></button><div className="relative flex h-[86vh] w-full max-w-6xl items-center justify-center" onClick={event=>event.stopPropagation()}><Image src={images[active].url} alt={`${title}, photograph ${active+1}`} fill unoptimized className="rounded-2xl object-contain"/>{images.length>1&&<><button aria-label="Previous photo" onClick={prev} className="absolute left-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/50 text-white"><ChevronLeft/></button><button aria-label="Next photo" onClick={next} className="absolute right-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/50 text-white"><ChevronRight/></button></>}</div></div>}
   </>;
 }
 
@@ -139,14 +141,13 @@ export default function PublicPropertyClient({
   }
 
   if (loadError || !propertyData) {
-    return <div className="grid min-h-screen place-items-center bg-[#f4f4ed] px-6 text-center text-[#10221c]"><div><Building2 className="mx-auto text-[#718078]" size={48}/><h1 className="mt-5 text-2xl font-black">Listing unavailable</h1><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#64736c]">{loadError || 'This listing link is invalid or has been removed.'}</p><a href="/" className="mt-6 inline-flex rounded-xl bg-[#10221c] px-5 py-3 text-sm font-black text-[#b7f34b]">Visit PropertyOS</a></div></div>;
+    return <div className="grid min-h-screen place-items-center bg-[#f4f4ed] px-6 text-center text-[#10221c]"><div><Building2 className="mx-auto text-[#718078]" size={48}/><h1 className="mt-5 text-2xl font-black">Listing unavailable</h1><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#64736c]">{loadError || 'This listing link is invalid or has been removed.'}</p><Link href="/" className="mt-6 inline-flex rounded-xl bg-[#10221c] px-5 py-3 text-sm font-black text-[#b7f34b]">Visit PropertyOS</Link></div></div>;
   }
 
   return <ListingExperience property={propertyData}/>;
 }
 
-function ListingExperience({ property: initialProperty }: { property: PublicProperty }) {
-  const absoluteUrl = (candidate?: string | null) => {
+function resolvePublicAsset(candidate?: string | null) {
     if (!candidate) return '';
     let url = candidate;
     if (url.includes('storage.supabase.co/storage/v1/s3/')) {
@@ -154,30 +155,35 @@ function ListingExperience({ property: initialProperty }: { property: PublicProp
     }
     if (/^https?:\/\//i.test(url) || url.startsWith('data:')) return url;
     const apiUrl = getApiUrl();
-    const backendOrigin = apiUrl.startsWith('http') ? apiUrl.replace(/\/api$/, '') : window.location.origin.replace('-frontend','-backend');
+    const browserOrigin = typeof window !== 'undefined' ? window.location.origin.replace('-frontend','-backend') : '';
+    const backendOrigin = apiUrl.startsWith('http') ? apiUrl.replace(/\/api$/, '') : browserOrigin;
     if (url.startsWith('/media/') || url.startsWith('/static/')) return `${backendOrigin}${url}`;
     const mediaIndex = url.indexOf('/media/');
     return mediaIndex >= 0 ? `${backendOrigin}${url.substring(mediaIndex)}` : url;
-  };
+}
 
-  const property = {
+function savedBuyerField(key: 'buyer_name' | 'buyer_phone') {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem(key) || '';
+}
+
+function ListingExperience({ property: initialProperty }: { property: PublicProperty }) {
+  const property = useMemo(() => ({
     ...initialProperty,
-    images: (initialProperty.images ?? []).map(image=>({...image,url:absoluteUrl(image.url),thumbnail_url:absoluteUrl(image.thumbnail_url)})),
-    brand_logo_url: absoluteUrl(initialProperty.brand_logo_url),
-    broker: {...initialProperty.broker, avatar_url:absoluteUrl(initialProperty.broker.avatar_url)},
-  };
+    images: (initialProperty.images ?? []).map(image=>({...image,url:resolvePublicAsset(image.url),thumbnail_url:resolvePublicAsset(image.thumbnail_url)})),
+    brand_logo_url: resolvePublicAsset(initialProperty.brand_logo_url),
+    broker: {...initialProperty.broker, avatar_url:resolvePublicAsset(initialProperty.broker.avatar_url)},
+  }), [initialProperty]);
   const brandColor = property.brand_color || '#b7f34b';
   const price = formatPrice(property.price);
   const inactive = property.status === 'EXPIRED';
   const [modalOpen,setModalOpen] = useState(false);
   const [pending,setPending] = useState<'whatsapp'|'call'>('whatsapp');
-  const [name,setName] = useState('');
-  const [phone,setPhone] = useState('');
+  const [name,setName] = useState(() => savedBuyerField('buyer_name'));
+  const [phone,setPhone] = useState(() => savedBuyerField('buyer_phone'));
   const [error,setError] = useState('');
 
   useEffect(()=>{
-    setName(localStorage.getItem('buyer_name') || '');
-    setPhone(localStorage.getItem('buyer_phone') || '');
     fetch(`${getApiUrl()}/analytics/log/`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({property:property.id,share_slug:property.slug,event_type:'PAGE_VIEW'})}).catch(()=>{});
   },[property.id,property.slug]);
 
@@ -246,7 +252,7 @@ function ListingExperience({ property: initialProperty }: { property: PublicProp
           </div>
 
           <aside className="lg:relative"><div className="space-y-4 lg:sticky lg:top-24">
-            <div className="rounded-[26px] bg-[#10221c] p-6 text-white shadow-[0_25px_70px_rgba(16,34,28,.16)]"><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#b7f34b]">Your direct property contact</p><div className="mt-5 flex items-center gap-3"><span className="relative grid h-12 w-12 place-items-center overflow-hidden rounded-2xl bg-[#b7f34b] text-lg font-black text-[#10221c]"><span>{property.broker.name[0]?.toUpperCase()}</span>{property.broker.avatar_url&&<span aria-hidden className="absolute inset-0 bg-cover bg-center" style={{backgroundImage:`url(${property.broker.avatar_url})`}}/>}</span><div className="min-w-0"><div className="flex items-center gap-1.5"><strong className="truncate">{property.broker.name}</strong><BadgeCheck size={16} className="text-[#b7f34b]"/></div><p className="truncate text-xs text-white/55">{property.broker.agency_name || property.agency_name || 'Independent property advisor'}</p></div></div><div className="mt-6 space-y-2"><button disabled={inactive} onClick={()=>requestContact('whatsapp')} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#b7f34b] text-sm font-black text-[#10221c] disabled:opacity-40"><MessageCircle size={17}/>Ask on WhatsApp</button><button disabled={inactive} onClick={()=>requestContact('call')} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 text-sm font-black disabled:opacity-40"><Phone size={16}/>Call broker</button></div><div className="mt-5 space-y-3 border-t border-white/10 pt-5 text-[11px] leading-5 text-white/60"><p className="flex gap-2"><CalendarCheck size={15} className="mt-0.5 shrink-0 text-[#b7f34b]"/>Ask for availability, a video tour, price details or a site-visit slot.</p><p className="flex gap-2"><ShieldCheck size={15} className="mt-0.5 shrink-0 text-[#b7f34b]"/>Your contact information goes only to this listing broker.</p></div></div>
+            <div className="rounded-[26px] bg-[#10221c] p-6 text-white shadow-[0_25px_70px_rgba(16,34,28,.16)]"><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#b7f34b]">Your direct property contact</p><div className="mt-5 flex items-center gap-3"><span className="relative grid h-12 w-12 place-items-center overflow-hidden rounded-2xl bg-[#b7f34b] text-lg font-black text-[#10221c]"><span>{property.broker.name[0]?.toUpperCase()}</span>{property.broker.avatar_url&&<span aria-hidden className="absolute inset-0 bg-cover bg-center" style={{backgroundImage:`url(${property.broker.avatar_url})`}}/>}</span><div className="min-w-0"><strong className="block truncate">{property.broker.name}</strong><p className="truncate text-xs text-white/55">{property.broker.agency_name || property.agency_name || 'Independent property advisor'}</p></div></div><div className="mt-6 space-y-2"><button disabled={inactive} onClick={()=>requestContact('whatsapp')} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#b7f34b] text-sm font-black text-[#10221c] disabled:opacity-40"><MessageCircle size={17}/>Ask on WhatsApp</button><button disabled={inactive} onClick={()=>requestContact('call')} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 text-sm font-black disabled:opacity-40"><Phone size={16}/>Call broker</button></div><div className="mt-5 space-y-3 border-t border-white/10 pt-5 text-[11px] leading-5 text-white/60"><p className="flex gap-2"><CalendarCheck size={15} className="mt-0.5 shrink-0 text-[#b7f34b]"/>Ask for availability, a video tour, price details or a site-visit slot.</p><p className="flex gap-2"><ShieldCheck size={15} className="mt-0.5 shrink-0 text-[#b7f34b]"/>Your contact information goes only to this listing broker.</p></div></div>
             <div className="rounded-[22px] border border-[#10221c]/10 bg-white/55 p-5"><div className="flex items-center justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.14em] text-[#718078]">Listing engagement</p><strong className="mt-1 block text-2xl">{property.views.toLocaleString('en-IN')} views</strong></div><span className="grid h-10 w-10 place-items-center rounded-full bg-[#dcebc9] text-[#315f2b]"><Maximize2 size={18}/></span></div><p className="mt-3 text-xs leading-5 text-[#718078]">Share the page with family or your advisor before scheduling a visit.</p><button onClick={share} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-[#10221c]/10 py-3 text-xs font-black"><Share2 size={15}/>Share this property</button></div>
           </div></aside>
         </section>

@@ -34,7 +34,6 @@ class Tenant(models.Model):
     marketing_consent = models.BooleanField(default=False)
     dpdp_consent_at = models.DateTimeField(blank=True, null=True)
     share_actions_count = models.PositiveIntegerField(default=0)
-    share_actions_count = models.PositiveIntegerField(default=0)
     listing_expiry_days = models.IntegerField(default=30)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -44,6 +43,7 @@ class Tenant(models.Model):
 
     def save(self, *args, **kwargs):
         from datetime import timedelta
+
         from django.utils import timezone
 
         if not self.referral_code:

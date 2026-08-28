@@ -69,6 +69,79 @@ def test_whatsapp_share_is_readable_and_uses_propertyos_local_frontend():
     request = RequestFactory().get("/api/v1/sharing/links/", HTTP_HOST="localhost:8000")
     data = ShareLinkSerializer(link, context={"request": request}).data
     assert data["full_share_url"].startswith("http://localhost:3100/p/")
-    assert data["whatsapp_share_text"].startswith("🏡 *Premium Property Alert!*")
+    assert data["whatsapp_share_text"].startswith("🏡 *Farm Land in Mulshi*")
     assert "%F0%9F" not in data["whatsapp_share_text"]
     assert data["full_share_url"] in data["whatsapp_share_text"]
+    assert "exact location" not in data["whatsapp_share_text"].lower()
+
+
+@pytest.mark.django_db
+def test_share_action_reuses_public_link_and_counts_each_share():
+    tenant = Tenant.objects.create(name="Stable Link Realty")
+    user = User.objects.create_user(
+        email="stable@example.com",
+        password="StrongPass!42",
+        name="Stable Broker",
+        tenant=tenant,
+        role="OWNER",
+    )
+    prop = Property.objects.create(
+        tenant=tenant,
+        created_by=user,
+        title="Three BHK in Baner",
+        description="Bright apartment with practical family layout.",
+        price=16500000,
+        property_type="APARTMENT",
+        city="Pune",
+        area="Baner",
+    )
+    automatic_link = ShareLink.objects_unfiltered.get(property=prop)
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    first = client.post(
+        "/api/v1/sharing/links/", {"property": str(prop.id)}, format="json"
+    )
+    second = client.post(
+        "/api/v1/sharing/links/", {"property": str(prop.id)}, format="json"
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.data["slug"] == automatic_link.slug == second.data["slug"]
+    assert ShareLink.objects_unfiltered.filter(property=prop).count() == 1
+    tenant.refresh_from_db()
+    assert tenant.share_actions_count == 2
+
+
+@pytest.mark.django_db
+def test_public_property_hides_exact_address_until_buyer_contacts_broker():
+    tenant = Tenant.objects.create(
+        name="Private Location Realty", whatsapp_default_number="+919999999999"
+    )
+    user = User.objects.create_user(
+        email="privacy@example.com",
+        password="StrongPass!42",
+        name="Privacy Broker",
+        phone="+919999999999",
+        tenant=tenant,
+        role="OWNER",
+    )
+    prop = Property.objects.create(
+        tenant=tenant,
+        created_by=user,
+        title="Private Address Listing",
+        description="A real broker-provided property description.",
+        price=9000000,
+        city="Pune",
+        area="Balewadi",
+        location_address="Flat 12, Exact Tower, Secret Road",
+    )
+    link = ShareLink.objects_unfiltered.get(property=prop)
+
+    response = APIClient().get(f"/api/v1/sharing/public/{link.slug}/")
+
+    assert response.status_code == 200
+    assert response.data["property"]["area"] == "Balewadi"
+    assert response.data["property"]["city"] == "Pune"
+    assert response.data["property"]["location_address"] is None

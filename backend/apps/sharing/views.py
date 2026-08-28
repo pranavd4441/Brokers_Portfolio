@@ -31,21 +31,39 @@ class ShareLinkViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return ShareLink.objects.all()
 
-    def perform_create(self, serializer):
-        link = serializer.save(
-            created_by=self.request.user, tenant=self.request.user.tenant
-        )
+    def create(self, request, *args, **kwargs):
+        """Return one stable public URL while counting each broker share action."""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        property_obj = serializer.validated_data["property"]
+
+        link = self.get_queryset().filter(property=property_obj).first()
+        created = link is None
+        if created:
+            link = serializer.save(
+                created_by=request.user,
+                tenant=request.user.tenant,
+            )
+
         from django.db.models import F
+
         from apps.accounts.models import Tenant
-        Tenant.objects.filter(pk=self.request.user.tenant_id).update(
+
+        Tenant.objects.filter(pk=request.user.tenant_id).update(
             share_actions_count=F("share_actions_count") + 1
         )
-        # Log audit trail for sharing the property
+
         log_audit_event(
-            self.request.user,
+            request.user,
             "SHARE",
-            link.property,
+            property_obj,
             {"slug": link.slug, "share_link_id": str(link.id)},
+        )
+
+        response_serializer = self.get_serializer(link)
+        return Response(
+            response_serializer.data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
 
 
@@ -102,10 +120,6 @@ class PublicPropertyResolverView(generics.RetrieveAPIView):
         )
         tenant_serializer = TenantSerializer(tenant_obj, context={"request": request})
 
-        prop_data = property_serializer.data
-        brand_data = tenant_serializer.data
-        owner = property_obj.created_by
-
         # Retrieve views count from AnalyticsEvent
         from apps.analytics.models import AnalyticsEvent
 
@@ -116,6 +130,9 @@ class PublicPropertyResolverView(generics.RetrieveAPIView):
         # Inject views count into serialized data
         property_data = property_serializer.data
         property_data["views"] = view_count
+        # Public pages disclose only the broker-provided locality. Exact address
+        # and directions are shared by the broker after a buyer enquires.
+        property_data["location_address"] = None
 
         # 5. Build broker info from the share link creator (user) + tenant fallback
         broker_name = tenant_obj.name
