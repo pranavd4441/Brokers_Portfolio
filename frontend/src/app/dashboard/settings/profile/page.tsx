@@ -15,7 +15,8 @@ export default function ProfileSettingsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load active user details
+  // Hydrate editable form state when the asynchronous auth store resolves.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (user) {
       setName(user.name || '');
@@ -23,6 +24,7 @@ export default function ProfileSettingsPage() {
       setPhone(user.phone || '');
     }
   }, [user]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,8 +51,8 @@ export default function ProfileSettingsPage() {
       await loadUser();
       
       toast.success('Profile updated successfully');
-    } catch (err: any) {
-      setError(err.message || 'Failed to update profile. Please try again.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to update profile. Please try again.');
       toast.error('Failed to update profile');
     } finally {
       setLoading(false);

@@ -78,8 +78,8 @@ export default function PropertyCard({
       } else {
         toast.error('Failed to generate brochure PDF.');
       }
-    } catch (err: any) {
-      toast.error(err.message || 'Error compiling PDF brochure.');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error compiling PDF brochure.');
     } finally {
       setIsDownloading(false);
     }

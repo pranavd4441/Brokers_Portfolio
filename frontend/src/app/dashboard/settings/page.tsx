@@ -17,6 +17,8 @@ export default function SettingsPage() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Hydrate editable form state when the asynchronous auth store resolves.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (user?.tenant) {
       setName(user.tenant.name || '');
@@ -25,6 +27,7 @@ export default function SettingsPage() {
       setLogoUrl(user.tenant.logo_url || '');
     }
   }, [user]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,8 +58,8 @@ export default function SettingsPage() {
       // Update Zustand state in real-time
       updateTenantBranding(brandingData);
       setSuccess(true);
-    } catch (err: any) {
-      setError(err.message || 'Failed to save branding settings. Please try again.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save branding settings. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -83,8 +86,8 @@ export default function SettingsPage() {
       setLogoUrl(result.logo_url);
       updateTenantBranding({ logo_url: result.logo_url });
       setSuccess(true);
-    } catch (err: any) {
-      setError(err.message || 'Logo upload failed.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Logo upload failed.');
     } finally {
       setUploadingLogo(false);
     }
@@ -136,7 +139,7 @@ export default function SettingsPage() {
               placeholder="e.g., +919876543210 (Include country code without '+' or spaces)"
               className="mt-1 block w-full px-4 py-3 rounded-xl border border-slate-800 bg-slate-950/60 placeholder-slate-500 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
             />
-            <span className="text-[10px] text-slate-500 mt-1 block">This is the default phone number used for the "Chat on WhatsApp" CTA on all property landing pages.</span>
+            <span className="text-[10px] text-slate-500 mt-1 block">This is the default phone number used for the &ldquo;Chat on WhatsApp&rdquo; CTA on all property landing pages.</span>
           </div>
 
           <div>

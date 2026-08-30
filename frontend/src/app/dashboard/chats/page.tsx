@@ -18,8 +18,8 @@ interface Message {
 interface ChatSession {
   phone_number: string;
   state: 'IDLE' | 'COLLECTING' | 'UPDATING' | 'QUERYING';
-  metadata: Record<string, any>;
-  temp_images: any[];
+  metadata: Record<string, unknown>;
+  temp_images: unknown[];
   updated_at: string;
   messages: Message[];
 }

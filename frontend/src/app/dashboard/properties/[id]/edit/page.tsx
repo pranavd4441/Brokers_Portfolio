@@ -261,7 +261,8 @@ export default function EditPropertyPage() {
     enabled: !!id,
   });
 
-  // Pre-populate form when data arrives
+  // Hydrate editable form state once when the property request resolves.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (property && !initialized) {
       setForm({
@@ -283,6 +284,7 @@ export default function EditPropertyPage() {
       setInitialized(true);
     }
   }, [property, initialized]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const updateField = useCallback(<K extends keyof EditForm>(key: K, value: EditForm[K]) => {
     setForm(prev => ({ ...prev, [key]: value }));
