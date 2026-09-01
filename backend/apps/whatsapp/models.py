@@ -46,6 +46,9 @@ class ConversationMessage(models.Model):
     media_url = models.CharField(max_length=512, blank=True, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
     raw_payload = models.JSONField(default=dict, blank=True)
+    provider_message_id = models.CharField(
+        max_length=255, blank=True, null=True, unique=True
+    )
 
     class Meta:
         ordering = ["timestamp"]

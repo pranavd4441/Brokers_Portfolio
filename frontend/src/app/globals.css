@@ -339,6 +339,26 @@ body {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-focus) 18%, transparent);
 }
 
+.whatsapp-intake-hero {
+  position: relative;
+  background:
+    radial-gradient(circle at 88% 14%, color-mix(in srgb, var(--ui-brand) 24%, transparent) 0, transparent 34%),
+    linear-gradient(135deg, var(--ui-surface-raised), var(--ui-surface));
+  box-shadow: var(--ui-shadow);
+}
+
+.whatsapp-intake-hero::after {
+  position: absolute;
+  right: -4rem;
+  bottom: -5rem;
+  width: 16rem;
+  height: 16rem;
+  border: 1px solid color-mix(in srgb, var(--ui-brand) 22%, transparent);
+  border-radius: 999px;
+  content: "";
+  pointer-events: none;
+}
+
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
   outline: 2px solid var(--ui-focus);
   outline-offset: 2px;

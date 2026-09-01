@@ -6,7 +6,15 @@ from .models import ConversationMessage, WhatsAppSession
 class ConversationMessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ConversationMessage
-        fields = ["id", "direction", "message_type", "body", "media_url", "timestamp"]
+        fields = [
+            "id",
+            "direction",
+            "message_type",
+            "body",
+            "media_url",
+            "timestamp",
+            "provider_message_id",
+        ]
 
 
 class WhatsAppSessionSerializer(serializers.ModelSerializer):

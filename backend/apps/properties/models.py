@@ -13,12 +13,18 @@ class Property(TenantModel):
     )
 
     STATUS_CHOICES = (
+        ("DRAFT", "Draft / Needs Review"),
         ("AVAILABLE", "Available"),
         ("NEGOTIATION", "In Negotiation"),
         ("SITE_VISIT", "Site Visit Scheduled"),
         ("BOOKED", "Booked / Token Received"),
         ("SOLD", "Sold / Closed"),
         ("EXPIRED", "Expired / Delisted"),
+    )
+
+    SOURCE_CHOICES = (
+        ("MANUAL", "Created in PropertyOS"),
+        ("WHATSAPP", "Imported from WhatsApp"),
     )
 
     created_by = models.ForeignKey(
@@ -38,6 +44,11 @@ class Property(TenantModel):
     expires_at = models.DateTimeField(null=True, blank=True)
     views_count = models.IntegerField(default=0)
     leads_count = models.IntegerField(default=0)
+
+    source = models.CharField(
+        max_length=20, choices=SOURCE_CHOICES, default="MANUAL", db_index=True
+    )
+    intake_metadata = models.JSONField(default=dict, blank=True)
 
     title = models.CharField(max_length=255)
     description = models.TextField()

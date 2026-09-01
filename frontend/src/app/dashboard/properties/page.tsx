@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Building2,
+  ArrowRight,
   Copy,
   ExternalLink,
   Eye,
@@ -22,6 +23,9 @@ import {
 import { toast } from 'sonner';
 import { useAppPreferences } from '@/components/AppPreferencesProvider';
 import ShareModal from '@/components/ShareModal';
+import { Badge } from '@/components/ui/badge';
+import { buttonVariants } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { fetchApi } from '@/lib/api';
 
 interface PropertyImage {
@@ -45,6 +49,11 @@ interface Property {
   views_count?: number;
   leads_count?: number;
   slug?: string;
+  source?: 'MANUAL' | 'WHATSAPP';
+  intake_metadata?: {
+    missing_fields?: string[];
+    suggested_fields?: string[];
+  };
 }
 
 interface ShareData {
@@ -53,10 +62,11 @@ interface ShareData {
   propertyTitle: string;
 }
 
-const STATUS_OPTIONS = ['ALL', 'AVAILABLE', 'NEGOTIATION', 'SITE_VISIT', 'BOOKED', 'SOLD', 'EXPIRED'];
+const STATUS_OPTIONS = ['ALL', 'DRAFT', 'AVAILABLE', 'NEGOTIATION', 'SITE_VISIT', 'BOOKED', 'SOLD', 'EXPIRED'];
 const TYPE_OPTIONS = ['ALL', 'APARTMENT', 'VILLA', 'PLOT', 'COMMERCIAL'];
 
 const STATUS_LABELS: Record<string, string> = {
+  DRAFT: 'Draft',
   AVAILABLE: 'Available',
   NEGOTIATION: 'In negotiation',
   SITE_VISIT: 'Site visit',
@@ -124,6 +134,10 @@ export default function PropertiesPage() {
     });
   }, [propertiesQuery.data, propertyType, search, status]);
 
+  const whatsappDraftCount = (propertiesQuery.data ?? []).filter(
+    (property) => property.source === 'WHATSAPP' && property.status === 'DRAFT',
+  ).length;
+
   const shareProperty = async (property: Property) => {
     setSharingId(property.id);
     try {
@@ -155,11 +169,38 @@ export default function PropertiesPage() {
             Manage the property pages you publish and share with buyers.
           </p>
         </div>
-        <Link href="/dashboard/properties/new" className="os-btn-primary shrink-0">
-          <Plus size={18} />
-          {t('listing.new')}
-        </Link>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Link href="/dashboard/properties/imports" className={buttonVariants({ variant: 'outline' })}>
+            <MessageCircle data-icon="inline-start" />
+            WhatsApp imports
+            {whatsappDraftCount > 0 && <Badge variant="secondary">{whatsappDraftCount}</Badge>}
+          </Link>
+          <Link href="/dashboard/properties/new" className={buttonVariants()}>
+            <Plus data-icon="inline-start" />
+            {t('listing.new')}
+          </Link>
+        </div>
       </header>
+
+      <Card className="whatsapp-intake-hero">
+        <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground">
+              <MessageCircle className="size-5" />
+            </span>
+            <div>
+              <p className="font-semibold text-foreground">Create inventory from WhatsApp</p>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+                Forward photos, copied details or a voice note. PropertyOS creates a private draft for review.
+              </p>
+            </div>
+          </div>
+          <Link href="/dashboard/properties/imports" className={buttonVariants({ variant: 'secondary' })}>
+            Open import queue
+            <ArrowRight data-icon="inline-end" />
+          </Link>
+        </CardContent>
+      </Card>
 
       <section className="os-surface p-3 sm:p-4" aria-label="Listing filters">
         <div className="grid gap-3 md:grid-cols-[minmax(240px,1fr)_190px_190px]">
@@ -252,6 +293,11 @@ export default function PropertiesPage() {
                     <span className="absolute left-3 top-3 rounded-full border border-white/60 bg-white/90 px-2.5 py-1 text-xs font-bold text-[#17211d] shadow-sm">
                       {STATUS_LABELS[property.status] ?? property.status}
                     </span>
+                    {property.source === 'WHATSAPP' && (
+                      <span className="absolute right-3 top-3 rounded-full border border-white/60 bg-white/90 px-2.5 py-1 text-xs font-bold text-[#17211d] shadow-sm">
+                        WhatsApp import
+                      </span>
+                    )}
                   </div>
 
                   <div className="p-4">
@@ -272,10 +318,17 @@ export default function PropertiesPage() {
                     </div>
 
                     <div className="mt-4 grid grid-cols-2 gap-2">
-                      <button type="button" onClick={() => void shareProperty(property)} disabled={sharingId === property.id} className="os-btn-primary px-3">
-                        <MessageCircle size={17} />
-                        {sharingId === property.id ? 'Preparing…' : 'Share'}
-                      </button>
+                      {property.status === 'DRAFT' ? (
+                        <Link href={`/dashboard/properties/${property.id}/review`} className="os-btn-primary px-3">
+                          <Pencil size={17} />
+                          Review
+                        </Link>
+                      ) : (
+                        <button type="button" onClick={() => void shareProperty(property)} disabled={sharingId === property.id} className="os-btn-primary px-3">
+                          <MessageCircle size={17} />
+                          {sharingId === property.id ? 'Preparing…' : 'Share'}
+                        </button>
+                      )}
                       <Link href={`/dashboard/properties/${property.id}`} className="os-btn-ghost px-3">
                         <ExternalLink size={17} />
                         Open

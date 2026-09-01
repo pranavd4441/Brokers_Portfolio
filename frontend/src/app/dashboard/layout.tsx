@@ -89,6 +89,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { locale, setLocale, themeMode, setThemeMode, t } = useAppPreferences();
   const [authChecked, setAuthChecked] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
   const moreDialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -150,11 +151,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="os-page-shell min-h-screen">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-[var(--ui-border)] bg-[var(--ui-surface)] lg:flex">
+      <aside aria-label="Workspace navigation" className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-[var(--ui-border)] bg-[var(--ui-surface)] lg:flex">
         <div className="flex h-20 items-center gap-3 border-b border-[var(--ui-border)] px-5">
           <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-2xl bg-[var(--ui-brand)] font-bold text-[var(--ui-brand-ink)]">
-            {workspaceLogo
-              ? <Image src={workspaceLogo} alt="" width={44} height={44} unoptimized className="h-full w-full object-cover" />
+            {workspaceLogo && failedLogoUrl !== workspaceLogo
+              ? <Image src={workspaceLogo} alt="" width={44} height={44} unoptimized className="h-full w-full object-cover" onError={() => setFailedLogoUrl(workspaceLogo)} />
               : userInitial}
           </div>
           <div className="min-w-0">
@@ -195,8 +196,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[var(--ui-border)] bg-[color-mix(in_srgb,var(--ui-surface)_94%,transparent)] px-4 backdrop-blur-xl lg:hidden">
         <div className="flex min-w-0 items-center gap-3">
           <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-[var(--ui-brand)] text-sm font-bold text-[var(--ui-brand-ink)]">
-            {workspaceLogo
-              ? <Image src={workspaceLogo} alt="" width={40} height={40} unoptimized className="h-full w-full object-cover" />
+            {workspaceLogo && failedLogoUrl !== workspaceLogo
+              ? <Image src={workspaceLogo} alt="" width={40} height={40} unoptimized className="h-full w-full object-cover" onError={() => setFailedLogoUrl(workspaceLogo)} />
               : userInitial}
           </div>
           <div className="min-w-0">

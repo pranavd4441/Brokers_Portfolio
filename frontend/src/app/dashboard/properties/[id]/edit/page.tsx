@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { fetchApi } from '@/lib/api';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface PropertyImage {
@@ -29,6 +31,7 @@ interface Property {
   amenities: string[];
   images: PropertyImage[];
   created_at: string;
+  source?: 'MANUAL' | 'WHATSAPP';
 }
 
 interface EditForm {
@@ -56,6 +59,7 @@ const PROPERTY_TYPES = [
 ];
 
 const STATUSES = [
+  { value: 'DRAFT',       label: 'Private Draft', color: '#59645e' },
   { value: 'AVAILABLE',   label: 'Available',   color: '#16c784' },
   { value: 'SITE_VISIT',  label: 'Site Visit',  color: '#38bdf8' },
   { value: 'NEGOTIATION', label: 'Negotiation', color: '#f59e0b' },
@@ -353,7 +357,11 @@ export default function EditPropertyPage() {
       queryClient.invalidateQueries({ queryKey: ['property', id] });
       queryClient.invalidateQueries({ queryKey: ['properties'] });
       toast.success('Listing updated!');
-      router.push(`/dashboard/properties/${id}`);
+      router.push(
+        property?.source === 'WHATSAPP' && property.status === 'DRAFT'
+          ? `/dashboard/properties/${id}/review`
+          : `/dashboard/properties/${id}`,
+      );
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
       setSubmitError(msg);
@@ -380,6 +388,18 @@ export default function EditPropertyPage() {
       </div>
 
       <WizardProgress currentStep={step} />
+
+      {property?.source === 'WHATSAPP' && property.status === 'DRAFT' && (
+        <Alert className="mb-5">
+          <AlertTitle className="flex items-center gap-2">
+            <Badge>WhatsApp draft</Badge>
+            Private while you edit
+          </AlertTitle>
+          <AlertDescription>
+            Save your corrections here, then return to the review screen to approve publication.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Step panels */}
       <div className="os-card p-6 os-fade-in" key={step}>
@@ -481,8 +501,13 @@ export default function EditPropertyPage() {
             {/* Status */}
             <div>
               <label className="os-input-label mb-2 block">Listing Status</label>
-              <div className="flex flex-wrap gap-2">
-                {STATUSES.map(s => (
+              {property?.source === 'WHATSAPP' && property.status === 'DRAFT' ? (
+                <div className="flex min-h-11 items-center rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)] px-4 text-sm font-semibold text-[var(--ui-text)]">
+                  Private draft — publish from the review screen
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {STATUSES.filter((status) => status.value !== 'DRAFT').map(s => (
                   <button
                     key={s.value}
                     type="button"
@@ -494,8 +519,9 @@ export default function EditPropertyPage() {
                     }`}
                     style={form.status === s.value ? { background: s.color } : {}}
                   >{s.label}</button>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

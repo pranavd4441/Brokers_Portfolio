@@ -52,6 +52,8 @@ class PropertySerializer(serializers.ModelSerializer):
             "price",
             "property_type",
             "status",
+            "source",
+            "intake_metadata",
             "city",
             "area",
             "location_address",
@@ -78,6 +80,8 @@ class PropertySerializer(serializers.ModelSerializer):
             "updated_at",
             "views_count",
             "leads_count",
+            "source",
+            "intake_metadata",
         ]
 
     def get_slug(self, obj):
@@ -123,6 +127,13 @@ class PropertySerializer(serializers.ModelSerializer):
             data["location_address"] = data["address"]
 
         return super().to_internal_value(data)
+
+    def validate_status(self, value):
+        if self.instance and self.instance.status == "DRAFT" and value == "AVAILABLE":
+            raise serializers.ValidationError(
+                "Review and publish this draft using the publish action."
+            )
+        return value
 
     def create(self, validated_data):
         # The view will handle injecting created_by and tenant into validated_data

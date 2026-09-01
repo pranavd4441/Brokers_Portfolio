@@ -8,7 +8,7 @@ from apps.accounts.models import Tenant, User
 from apps.properties.models import Property
 from apps.sharing.models import ShareLink
 from apps.whatsapp.models import ConversationMessage, WhatsAppSession
-from apps.whatsapp.services import RegexParserService
+from apps.whatsapp.services import GeminiAudioTranscriptionService, RegexParserService
 
 
 @pytest.fixture
@@ -49,6 +49,13 @@ def test_regex_parser_logic():
     assert parsed_plot["property_type"] == "PLOT"
     assert parsed_plot["price"] == 15000000.0
     assert "2 Acres" in parsed_plot["description"]
+
+    clubhouse_apartment = RegexParserService.parse(
+        "3 BHK apartment in Wakad, Pune for sale with clubhouse. Price 1.35 Cr."
+    )
+    assert clubhouse_apartment["property_type"] == "APARTMENT"
+    assert clubhouse_apartment["area"] == "Wakad"
+    assert clubhouse_apartment["city"] == "Pune"
 
 
 @pytest.mark.django_db
@@ -93,11 +100,12 @@ def test_whatsapp_onboarding_conversation_flow(mock_gateway_fn, api_client, test
     assert session.metadata["square_feet"] == 1600.0
     assert session.metadata["area"] == "Bandra"
 
-    # Step 3: Send "done" to finalize publishing
-    response = api_client.post(
-        webhook_url, {"From": from_number, "Body": "done", "NumMedia": "0"}
-    )
-    assert response.status_code == 200
+    # Confirm extracted details and save a private review draft.
+    for body in ("btn_details_ok", "btn_skip_amenities", "btn_save_draft"):
+        response = api_client.post(
+            webhook_url, {"From": from_number, "Body": body, "NumMedia": "0"}
+        )
+        assert response.status_code == 200
 
     # Verify session returns to IDLE
     session.refresh_from_db()
@@ -112,6 +120,9 @@ def test_whatsapp_onboarding_conversation_flow(mock_gateway_fn, api_client, test
     assert property_obj.bhk == 3
     assert property_obj.square_feet == 1600.0
     assert property_obj.area == "Bandra"
+    assert property_obj.status == "DRAFT"
+    assert property_obj.source == "WHATSAPP"
+    assert property_obj.intake_metadata["reviewed"] is False
 
     # Verify ShareLink is generated for the property
     share_link = ShareLink.objects_unfiltered.filter(property=property_obj).first()
@@ -121,7 +132,7 @@ def test_whatsapp_onboarding_conversation_flow(mock_gateway_fn, api_client, test
 
 @pytest.mark.django_db
 @patch("apps.whatsapp.services.get_whatsapp_gateway")
-def test_guided_whatsapp_listing_wizard_publishes_one_shareable_listing(
+def test_guided_whatsapp_listing_wizard_creates_one_private_review_draft(
     mock_gateway_fn, api_client, test_setup
 ):
     """Exercise every user-facing step in the current five-step listing wizard."""
@@ -168,8 +179,8 @@ def test_guided_whatsapp_listing_wizard_publishes_one_shareable_listing(
     session = send("btn_details_ok")
     assert session.metadata["step"] == "CONFIRMING_AMENITIES"
     session = send("btn_skip_amenities")
-    assert session.metadata["step"] == "CONFIRMING_PUBLISH"
-    session = send("btn_publish")
+    assert session.metadata["step"] == "CONFIRMING_DRAFT"
+    session = send("btn_save_draft")
 
     assert session.state == "IDLE"
     assert session.metadata == {}
@@ -177,7 +188,9 @@ def test_guided_whatsapp_listing_wizard_publishes_one_shareable_listing(
     property_obj = Property.objects_unfiltered.get(created_by=broker)
     assert property_obj.title == "3 BHK Apartment in Baner"
     assert property_obj.city == "Pune"
-    assert property_obj.status == "AVAILABLE"
+    assert property_obj.status == "DRAFT"
+    assert property_obj.source == "WHATSAPP"
+    assert property_obj.intake_metadata["extraction_source"] == "RULES"
 
     share_links = ShareLink.objects_unfiltered.filter(property=property_obj)
     assert share_links.count() == 1
@@ -187,8 +200,64 @@ def test_guided_whatsapp_listing_wizard_publishes_one_shareable_listing(
         session=session, direction="OUTBOUND"
     ).last()
     assert final_message is not None
-    assert "successfully published" in final_message.body
-    assert f"/p/{share_link.slug}" in final_message.body
+    assert "Private draft created" in final_message.body
+    assert f"/dashboard/properties/{property_obj.id}/review" in final_message.body
+
+
+@pytest.mark.django_db
+@patch("apps.whatsapp.services.get_whatsapp_gateway")
+def test_duplicate_provider_message_is_ignored(mock_gateway_fn, api_client, test_setup):
+    mock_gateway_fn.return_value = MagicMock()
+    webhook_url = reverse("whatsapp_webhook")
+    payload = {
+        "From": "whatsapp:+919999999999",
+        "Body": "create listing",
+        "NumMedia": "0",
+        "MessageSid": "SM-propertyos-dedup-1",
+    }
+
+    first = api_client.post(webhook_url, payload)
+    second = api_client.post(webhook_url, payload)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["status"] == "duplicate_ignored"
+    assert (
+        ConversationMessage.objects.filter(
+            provider_message_id="SM-propertyos-dedup-1"
+        ).count()
+        == 1
+    )
+
+
+def test_audio_transcription_never_returns_fabricated_property_details(settings):
+    settings.GEMINI_API_KEY = ""
+    assert GeminiAudioTranscriptionService.transcribe(b"audio", "audio/ogg") == ""
+
+
+@pytest.mark.django_db
+def test_reviewed_whatsapp_draft_can_be_published(api_client, test_setup):
+    tenant, broker = test_setup
+    property_obj = Property.objects.create(
+        tenant=tenant,
+        created_by=broker,
+        title="3 BHK in Baner",
+        description="Broker-provided details reviewed in PropertyOS.",
+        price=16_500_000,
+        city="Pune",
+        area="Baner",
+        status="DRAFT",
+        source="WHATSAPP",
+    )
+    api_client.force_authenticate(user=broker)
+
+    response = api_client.post(
+        reverse("property-publish", kwargs={"pk": property_obj.id})
+    )
+
+    assert response.status_code == 200
+    property_obj.refresh_from_db()
+    assert property_obj.status == "AVAILABLE"
 
 
 @pytest.mark.django_db

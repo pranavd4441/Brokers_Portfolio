@@ -14,6 +14,24 @@ from .models import Property
 from .serializers import PropertySerializer
 
 
+def whatsapp_draft_missing_fields(property_obj):
+    """Return required review fields without treating system placeholders as data."""
+    values = {
+        "title": property_obj.title
+        if property_obj.title != "WhatsApp property draft"
+        else "",
+        "description": property_obj.description
+        if not property_obj.description.startswith(
+            "Property details received through WhatsApp"
+        )
+        else "",
+        "price": property_obj.price,
+        "area": property_obj.area,
+        "city": property_obj.city,
+    }
+    return [field for field, value in values.items() if not value]
+
+
 class PropertyViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing property listings.
@@ -56,6 +74,15 @@ class PropertyViewSet(viewsets.ModelViewSet):
 
         property_obj = serializer.save()
 
+        if property_obj.source == "WHATSAPP" and property_obj.status == "DRAFT":
+            intake_metadata = dict(property_obj.intake_metadata or {})
+            intake_metadata["missing_fields"] = whatsapp_draft_missing_fields(
+                property_obj
+            )
+            intake_metadata["reviewed"] = True
+            property_obj.intake_metadata = intake_metadata
+            property_obj.save(update_fields=["intake_metadata", "updated_at"])
+
         # Build changes payload
         changes = {}
         if old_price != property_obj.price:
@@ -76,6 +103,40 @@ class PropertyViewSet(viewsets.ModelViewSet):
         # Log audit trail before deleting
         log_audit_event(self.request.user, "DELETE", instance)
         super().perform_destroy(instance)
+
+    @decorators.action(detail=True, methods=["post"])
+    def publish(self, request, pk=None):
+        """Publish a reviewed draft without exposing incomplete imports."""
+        property_obj = self.get_object()
+        if property_obj.status != "DRAFT":
+            return Response(
+                {
+                    "detail": "Only draft listings can be published from this review action."
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        missing_fields = whatsapp_draft_missing_fields(property_obj)
+        if missing_fields:
+            return Response(
+                {
+                    "detail": "Complete the required property details before publishing.",
+                    "missing_fields": missing_fields,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        property_obj.status = "AVAILABLE"
+        property_obj.save(update_fields=["status", "updated_at"])
+        log_audit_event(
+            request.user,
+            "UPDATE",
+            property_obj,
+            {"status": {"old": "DRAFT", "new": "AVAILABLE"}},
+        )
+        return Response(
+            self.get_serializer(property_obj).data, status=status.HTTP_200_OK
+        )
 
     @decorators.action(detail=True, methods=["post"])
     def duplicate(self, request, pk=None):

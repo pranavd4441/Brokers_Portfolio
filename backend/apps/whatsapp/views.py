@@ -9,7 +9,7 @@ import urllib.request
 
 from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import permissions, status, viewsets
@@ -65,8 +65,8 @@ def send_main_menu(session, user, text_prefix=""):
 def send_details_confirmation(session):
     price = session.metadata.get("price")
     bhk = session.metadata.get("bhk")
-    area = session.metadata.get("area", "Local Area")
-    city = session.metadata.get("city", "Mumbai")
+    area = session.metadata.get("area")
+    city = session.metadata.get("city")
     prop_type = session.metadata.get("property_type", "APARTMENT")
     sqft = session.metadata.get("square_feet")
     amenities = session.metadata.get("amenities", [])
@@ -89,7 +89,7 @@ def send_details_confirmation(session):
         "Here's what I understood:\n\n"
         f"🏠 Property Type: *{prop_type.capitalize()}*\n"
         f"🛏 Configuration: *{f'{bhk} BHK' if bhk else 'Not Set'}*\n"
-        f"📍 Location: *{area}, {city}*\n"
+        f"📍 Location: *{', '.join(part for part in [area, city] if part) or 'Not Set'}*\n"
         f"💰 Price: *{fp}*\n"
         f"📐 Size: *{f'{sqft} sqft' if sqft else 'Not Set'}*\n"
         f"🏊 Amenities: *{', '.join(amenities) if amenities else 'None'}*\n\n"
@@ -101,6 +101,98 @@ def send_details_confirmation(session):
         {"id": "btn_details_cancel", "title": "Cancel"},
     ]
     send_and_log_message(session, msg, buttons=buttons)
+
+
+def create_whatsapp_draft(session, user):
+    """Persist one tenant-scoped, private draft from a reviewed WhatsApp session."""
+    metadata = session.metadata
+    prop_type = metadata.get("property_type") or "APARTMENT"
+    title = metadata.get("title") or "WhatsApp property draft"
+    description = (
+        metadata.get("description")
+        or metadata.get("raw_details")
+        or ("Property details received through WhatsApp. Review before publishing.")
+    )
+    area = metadata.get("area") or ""
+    city = metadata.get("city") or ""
+
+    missing_fields = [
+        field
+        for field, value in (
+            ("title", metadata.get("title")),
+            ("description", metadata.get("description")),
+            ("area", metadata.get("area")),
+            ("city", metadata.get("city")),
+        )
+        if not value
+    ]
+    suggested_fields = [
+        field
+        for field, value in (
+            ("bhk", metadata.get("bhk")),
+            ("square_feet", metadata.get("square_feet")),
+            ("photos", session.temp_images),
+        )
+        if not value
+    ]
+
+    with transaction.atomic():
+        property_obj = Property.objects.create(
+            tenant=user.tenant,
+            created_by=user,
+            title=title,
+            description=description,
+            price=metadata["price"],
+            property_type=prop_type,
+            status="DRAFT",
+            source="WHATSAPP",
+            intake_metadata={
+                "extraction_source": metadata.get("_extraction_source", "RULES"),
+                "missing_fields": missing_fields,
+                "suggested_fields": suggested_fields,
+                "source_phone": session.phone_number,
+                "raw_details": metadata.get("raw_details", ""),
+                "photo_count": len(session.temp_images),
+                "reviewed": False,
+            },
+            city=city,
+            area=area,
+            bhk=metadata.get("bhk"),
+            square_feet=metadata.get("square_feet"),
+            amenities=metadata.get("amenities", []),
+        )
+
+        for image_data in session.temp_images:
+            PropertyImage.objects.create(
+                property=property_obj,
+                url=image_data["url"],
+                thumbnail_url=image_data["thumbnail_url"],
+                display_order=image_data["display_order"],
+            )
+
+    return property_obj
+
+
+def merge_extracted_details(session, body_text):
+    """Merge only genuinely extracted values and retain the broker's source text."""
+    if not body_text or body_text.startswith("["):
+        return False
+
+    parsed_update = GeminiParserService.parse(body_text)
+    extracted_values = {
+        key: value
+        for key, value in parsed_update.items()
+        if not key.startswith("_") and value is not None and value != ""
+    }
+    if not extracted_values:
+        return False
+
+    session.metadata.update(extracted_values)
+    session.metadata["raw_details"] = body_text
+    session.metadata["_extraction_source"] = parsed_update.get(
+        "_extraction_source", "RULES"
+    )
+    return True
 
 
 class WhatsAppWebhookView(APIView):
@@ -231,6 +323,7 @@ class WhatsAppWebhookView(APIView):
         num_media = 0
         msg_type = "text"
         image_id = None
+        provider_message_id = None
 
         if is_meta:
             try:
@@ -247,6 +340,7 @@ class WhatsAppWebhookView(APIView):
 
                 from_raw = "whatsapp:" + message.get("from", "")
                 msg_type = message.get("type", "text")
+                provider_message_id = message.get("id")
 
                 if msg_type == "text":
                     body_text = message.get("text", {}).get("body", "").strip()
@@ -319,6 +413,7 @@ class WhatsAppWebhookView(APIView):
             from_raw = data.get("From", "")
             body_text = data.get("Body", "").strip()
             num_media = int(data.get("NumMedia", "0"))
+            provider_message_id = data.get("MessageSid") or data.get("SmsMessageSid")
 
         if not from_raw:
             return Response(
@@ -339,19 +434,37 @@ class WhatsAppWebhookView(APIView):
         # 3. Retrieve or Create Session & Log Inbound Message
         session, _ = WhatsAppSession.objects.get_or_create(phone_number=phone_number)
 
+        if (
+            provider_message_id
+            and ConversationMessage.objects.filter(
+                provider_message_id=provider_message_id
+            ).exists()
+        ):
+            logger.info("Duplicate WhatsApp event ignored: %s", provider_message_id)
+            return Response({"status": "duplicate_ignored"}, status=status.HTTP_200_OK)
+
         if user and not session.tenant:
             session.tenant = user.tenant
             session.save()
 
         try:
+            message_kind = (
+                "IMAGE" if num_media > 0 else "AUDIO" if msg_type == "audio" else "TEXT"
+            )
             ConversationMessage.objects.create(
                 session=session,
                 direction="INBOUND",
-                message_type="IMAGE" if num_media > 0 else "TEXT",
+                message_type=message_kind,
                 body=body_text,
                 media_url=None,
                 raw_payload=data,
+                provider_message_id=provider_message_id,
             )
+        except IntegrityError:
+            logger.info(
+                "Concurrent duplicate WhatsApp event ignored: %s", provider_message_id
+            )
+            return Response({"status": "duplicate_ignored"}, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Failed to log inbound conversation message: {str(e)}")
 
@@ -375,6 +488,17 @@ class WhatsAppWebhookView(APIView):
         tenant_token = set_current_tenant_id(str(user.tenant.id))
 
         try:
+            if msg_type == "audio" and (
+                not body_text or body_text.startswith("[Failed to transcribe")
+            ):
+                send_and_log_message(
+                    session,
+                    "I couldn't transcribe that voice note, so I did not create any property details. Please type the details or try another voice note.",
+                )
+                return Response(
+                    {"status": "transcription_unavailable"}, status=status.HTTP_200_OK
+                )
+
             body_lower = body_text.lower()
 
             # 6. Global Reset/Cancel Command
@@ -963,105 +1087,6 @@ class WhatsAppWebhookView(APIView):
 
             # 10. COLLECTING State Machine (Wizard flow)
             elif session.state == "COLLECTING":
-                if body_lower == "done":
-                    price = session.metadata.get("price")
-                    if not price:
-                        session.metadata["step"] = "AWAITING_PRICE"
-                        session.save()
-                        send_and_log_message(
-                            session,
-                            "We need at least a *price* to publish. Please send the price (e.g. '50L').",
-                        )
-                        return Response(
-                            {"detail": "Missing price."}, status=status.HTTP_200_OK
-                        )
-
-                    try:
-                        with transaction.atomic():
-                            prop_type = session.metadata.get(
-                                "property_type", "APARTMENT"
-                            )
-                            title = session.metadata.get("title")
-                            area = session.metadata.get("area", "Local Area")
-                            city = session.metadata.get("city", "Mumbai")
-                            bhk = session.metadata.get("bhk")
-                            sqft = session.metadata.get("square_feet")
-                            desc = session.metadata.get(
-                                "description",
-                                f"Premium {prop_type} located in {area}, {city}.",
-                            )
-
-                            if not title:
-                                type_label = prop_type.capitalize()
-                                bhk_prefix = f"{bhk} BHK " if bhk else ""
-                                title = f"{bhk_prefix}{type_label} in {area}"
-
-                            property_obj = Property.objects.create(
-                                tenant=user.tenant,
-                                created_by=user,
-                                title=title,
-                                description=desc,
-                                price=price,
-                                property_type=prop_type,
-                                status="AVAILABLE",
-                                city=city,
-                                area=area,
-                                bhk=bhk,
-                                square_feet=sqft,
-                                amenities=session.metadata.get("amenities", []),
-                            )
-
-                            for img_data in session.temp_images:
-                                PropertyImage.objects.create(
-                                    property=property_obj,
-                                    url=img_data["url"],
-                                    thumbnail_url=img_data["thumbnail_url"],
-                                    display_order=img_data["display_order"],
-                                )
-
-                            share_link, _ = ShareLink.objects.get_or_create(
-                                property=property_obj,
-                                defaults={"created_by": user, "tenant": user.tenant},
-                            )
-
-                        session.state = "IDLE"
-                        session.metadata = {}
-                        session.temp_images = []
-                        session.save()
-
-                        formatted_price = (
-                            f"₹{price / 10_000_000:.2f} Cr"
-                            if price >= 10_000_000
-                            else f"₹{price / 100_000:.2f} L"
-                            if price >= 100_000
-                            else f"₹{price:,.2f}"
-                        )
-                        host = get_frontend_url(request)
-                        public_url = f"{host}/p/{share_link.slug}"
-
-                        msg = (
-                            "🎉 Got it! Your property listing has been successfully published!\n\n"
-                            f"🏠 *{title}*\n"
-                            f"💰 Price: {formatted_price}\n"
-                            f"📍 Location: {area}, {city}\n\n"
-                            f"👉 *View Public Listing:* {public_url}"
-                        )
-                        buttons = [
-                            {"id": "menu_create_listing", "title": "Create Another"},
-                            {"id": "btn_main_menu", "title": "Main Menu"},
-                        ]
-                        send_and_log_message(session, msg, buttons=buttons)
-
-                    except Exception as e:
-                        logger.error(
-                            f"Failed to save WhatsApp property listing: {str(e)}"
-                        )
-                        send_and_log_message(
-                            session,
-                            f"An error occurred while publishing: {str(e)}. Please try again.",
-                        )
-                    return Response({"status": "success"}, status=status.HTTP_200_OK)
-
                 step = session.metadata.get("step", "AWAITING_PHOTOS")
 
                 # A. Process Media Attachments
@@ -1175,10 +1200,15 @@ class WhatsAppWebhookView(APIView):
                         buttons = [{"id": "btn_skip_details", "title": "Skip Details"}]
                         send_and_log_message(session, msg, buttons=buttons)
                     elif body_text and num_media == 0:
-                        parsed_update = GeminiParserService.parse(body_text)
-                        for k, v in parsed_update.items():
-                            if v is not None and v != "":
-                                session.metadata[k] = v
+                        if not merge_extracted_details(session, body_text):
+                            send_and_log_message(
+                                session,
+                                "I couldn't confidently extract property details from that message. Please include the property type, locality and price.",
+                            )
+                            return Response(
+                                {"status": "details_need_input"},
+                                status=status.HTTP_200_OK,
+                            )
                         session.metadata["step"] = "CONFIRMING_DETAILS"
                         session.save()
                         send_details_confirmation(session)
@@ -1189,10 +1219,15 @@ class WhatsAppWebhookView(APIView):
                         session.save()
                         send_details_confirmation(session)
                     else:
-                        parsed_update = GeminiParserService.parse(body_text)
-                        for k, v in parsed_update.items():
-                            if v is not None and v != "":
-                                session.metadata[k] = v
+                        if not merge_extracted_details(session, body_text):
+                            send_and_log_message(
+                                session,
+                                "I couldn't confidently extract property details from that message. Please include the property type, locality and price.",
+                            )
+                            return Response(
+                                {"status": "details_need_input"},
+                                status=status.HTTP_200_OK,
+                            )
                         session.metadata["step"] = "CONFIRMING_DETAILS"
                         session.save()
                         send_details_confirmation(session)
@@ -1239,10 +1274,15 @@ class WhatsAppWebhookView(APIView):
                             list_title="Edit Fields",
                         )
                     else:
-                        parsed_update = GeminiParserService.parse(body_text)
-                        for k, v in parsed_update.items():
-                            if v is not None and v != "":
-                                session.metadata[k] = v
+                        if not merge_extracted_details(session, body_text):
+                            send_and_log_message(
+                                session,
+                                "I couldn't identify a change in that message. Choose a field or type the updated property details more clearly.",
+                            )
+                            return Response(
+                                {"status": "details_need_input"},
+                                status=status.HTTP_200_OK,
+                            )
                         session.save()
                         send_details_confirmation(session)
 
@@ -1326,99 +1366,57 @@ class WhatsAppWebhookView(APIView):
                         ]
                         send_and_log_message(session, msg, buttons=buttons)
                     elif body_lower == "btn_skip_amenities":
-                        session.metadata["step"] = "CONFIRMING_PUBLISH"
+                        session.metadata["step"] = "CONFIRMING_DRAFT"
                         session.save()
-                        msg = "Everything looks good. Ready to publish?"
+                        msg = (
+                            "Everything is captured. Save this as a private review draft?\n\n"
+                            "Nothing will be public until you review and publish it in PropertyOS."
+                        )
                         buttons = [
-                            {"id": "btn_publish", "title": "Publish"},
-                            {"id": "btn_save_draft", "title": "Save Draft"},
+                            {"id": "btn_save_draft", "title": "Create Draft"},
                             {"id": "btn_details_edit", "title": "Edit Details"},
+                            {"id": "btn_details_cancel", "title": "Cancel"},
                         ]
                         send_and_log_message(session, msg, buttons=buttons)
 
-                elif step == "CONFIRMING_PUBLISH":
-                    if body_lower in ["btn_publish", "publish", "done"]:
+                elif step in ["CONFIRMING_DRAFT", "CONFIRMING_PUBLISH"]:
+                    if body_lower in [
+                        "btn_save_draft",
+                        "btn_publish",
+                        "publish",
+                        "done",
+                    ]:
                         price = session.metadata.get("price")
                         if not price:
                             session.metadata["step"] = "AWAITING_PRICE"
                             session.save()
                             send_and_log_message(
                                 session,
-                                "We need at least a *price* to publish. Please send the price (e.g. '50L').",
+                                "We need at least a *price* to create the draft. Please send the price (e.g. '50L').",
                             )
                             return Response(
                                 {"detail": "Missing price."}, status=status.HTTP_200_OK
                             )
 
                         try:
-                            with transaction.atomic():
-                                prop_type = session.metadata.get(
-                                    "property_type", "APARTMENT"
-                                )
-                                title = session.metadata.get("title")
-                                area = session.metadata.get("area", "Local Area")
-                                city = session.metadata.get("city", "Mumbai")
-                                bhk = session.metadata.get("bhk")
-                                sqft = session.metadata.get("square_feet")
-                                desc = session.metadata.get(
-                                    "description",
-                                    f"Premium {prop_type} located in {area}, {city}.",
-                                )
-
-                                if not title:
-                                    type_label = prop_type.capitalize()
-                                    bhk_prefix = f"{bhk} BHK " if bhk else ""
-                                    title = f"{bhk_prefix}{type_label} in {area}"
-
-                                property_obj = Property.objects.create(
-                                    tenant=user.tenant,
-                                    created_by=user,
-                                    title=title,
-                                    description=desc,
-                                    price=price,
-                                    property_type=prop_type,
-                                    status="AVAILABLE",
-                                    city=city,
-                                    area=area,
-                                    bhk=bhk,
-                                    square_feet=sqft,
-                                    amenities=session.metadata.get("amenities", []),
-                                )
-
-                                for img_data in session.temp_images:
-                                    PropertyImage.objects.create(
-                                        property=property_obj,
-                                        url=img_data["url"],
-                                        thumbnail_url=img_data["thumbnail_url"],
-                                        display_order=img_data["display_order"],
-                                    )
-
-                                share_link, _ = ShareLink.objects.get_or_create(
-                                    property=property_obj,
-                                    defaults={"created_by": user, "tenant": user.tenant},
-                                )
+                            property_obj = create_whatsapp_draft(session, user)
 
                             session.state = "IDLE"
                             session.metadata = {}
                             session.temp_images = []
                             session.save()
 
-                            formatted_price = (
-                                f"₹{price / 10_000_000:.2f} Cr"
-                                if price >= 10_000_000
-                                else f"₹{price / 100_000:.2f} L"
-                                if price >= 100_000
-                                else f"₹{price:,.2f}"
-                            )
                             host = get_frontend_url(request)
-                            public_url = f"{host}/p/{share_link.slug}"
+                            review_url = (
+                                f"{host}/dashboard/properties/{property_obj.id}/review"
+                            )
 
                             msg = (
-                                "🎉 Got it! Your property listing has been successfully published!\n\n"
-                                f"🏠 *{title}*\n"
-                                f"💰 Price: {formatted_price}\n"
-                                f"📍 Location: {area}, {city}\n\n"
-                                f"👉 *View Public Listing:* {public_url}"
+                                "✅ *Private draft created*\n\n"
+                                f"🏠 {property_obj.title}\n"
+                                f"📷 {property_obj.images.count()} photos received\n\n"
+                                "Review the extracted details and publish only when they are correct:\n"
+                                f"{review_url}"
                             )
                             buttons = [
                                 {
@@ -1430,95 +1428,10 @@ class WhatsAppWebhookView(APIView):
                             send_and_log_message(session, msg, buttons=buttons)
 
                         except Exception as e:
-                            logger.error(
-                                f"Failed to save WhatsApp property listing: {str(e)}"
-                            )
+                            logger.error(f"Failed to save WhatsApp draft: {str(e)}")
                             send_and_log_message(
                                 session,
-                                f"An error occurred while publishing: {str(e)}. Please try again.",
-                            )
-
-                    elif body_lower == "btn_save_draft":
-                        price = session.metadata.get("price")
-                        if not price:
-                            session.metadata["step"] = "AWAITING_PRICE"
-                            session.save()
-                            send_and_log_message(
-                                session,
-                                "We need at least a *price* to save as draft. Please send the price (e.g. '50L').",
-                            )
-                            return Response(
-                                {"detail": "Missing price."}, status=status.HTTP_200_OK
-                            )
-
-                        try:
-                            with transaction.atomic():
-                                prop_type = session.metadata.get(
-                                    "property_type", "APARTMENT"
-                                )
-                                title = session.metadata.get("title")
-                                area = session.metadata.get("area", "Local Area")
-                                city = session.metadata.get("city", "Mumbai")
-                                bhk = session.metadata.get("bhk")
-                                sqft = session.metadata.get("square_feet")
-                                desc = session.metadata.get(
-                                    "description",
-                                    f"Premium {prop_type} located in {area}, {city}.",
-                                )
-
-                                if not title:
-                                    type_label = prop_type.capitalize()
-                                    bhk_prefix = f"{bhk} BHK " if bhk else ""
-                                    title = f"{bhk_prefix}{type_label} in {area}"
-
-                                property_obj = Property.objects.create(
-                                    tenant=user.tenant,
-                                    created_by=user,
-                                    title=title,
-                                    description=desc,
-                                    price=price,
-                                    property_type=prop_type,
-                                    status="EXPIRED",
-                                    city=city,
-                                    area=area,
-                                    bhk=bhk,
-                                    square_feet=sqft,
-                                    amenities=session.metadata.get("amenities", []),
-                                )
-
-                                for img_data in session.temp_images:
-                                    PropertyImage.objects.create(
-                                        property=property_obj,
-                                        url=img_data["url"],
-                                        thumbnail_url=img_data["thumbnail_url"],
-                                        display_order=img_data["display_order"],
-                                    )
-
-                                share_link, _ = ShareLink.objects.get_or_create(
-                                    property=property_obj,
-                                    defaults={"created_by": user, "tenant": user.tenant},
-                                )
-
-                            session.state = "IDLE"
-                            session.metadata = {}
-                            session.temp_images = []
-                            session.save()
-
-                            msg = f"✓ Draft saved successfully! Your property '{title}' has been saved as an inactive draft. You can publish it anytime from your dashboard."
-                            buttons = [
-                                {
-                                    "id": "menu_create_listing",
-                                    "title": "Create Another",
-                                },
-                                {"id": "btn_main_menu", "title": "Main Menu"},
-                            ]
-                            send_and_log_message(session, msg, buttons=buttons)
-
-                        except Exception as e:
-                            logger.error(f"Failed to save draft: {str(e)}")
-                            send_and_log_message(
-                                session,
-                                f"An error occurred while saving draft: {str(e)}.",
+                                "The draft could not be saved. Your session is still open; please try again or contact support.",
                             )
 
             return Response({"status": "success"}, status=status.HTTP_200_OK)
@@ -1537,6 +1450,32 @@ class WhatsAppSessionViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         return WhatsAppSession.objects.filter(tenant=self.request.user.tenant).order_by(
             "-updated_at"
+        )
+
+
+class WhatsAppConnectionView(APIView):
+    """Return safe connection details for the broker workspace."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        provider = getattr(settings, "WHATSAPP_GATEWAY_PROVIDER", "MOCK").upper()
+        if provider == "TWILIO":
+            intake_number = getattr(settings, "TWILIO_WHATSAPP_NUMBER", "")
+        elif provider == "META":
+            intake_number = getattr(settings, "WHATSAPP_BUSINESS_NUMBER", "")
+        else:
+            intake_number = ""
+
+        configured = bool(intake_number) and provider in {"META", "TWILIO"}
+        return Response(
+            {
+                "provider": provider,
+                "configured": configured,
+                "intake_number": intake_number.replace("whatsapp:", ""),
+                "broker_phone": request.user.phone or "",
+                "supported_inputs": ["TEXT", "IMAGE", "AUDIO"],
+            }
         )
 
 

@@ -29,26 +29,26 @@ class RegexParserService:
             "description": None,
             "area": None,
             "city": None,
+            "_extraction_source": "RULES",
         }
 
         text_lower = text.lower()
 
         # 1. Parse Property Type
-        if any(w in text_lower for w in ["plot", "land", "acre", "acer", "ground"]):
+        def contains_term(*terms):
+            return any(
+                re.search(rf"\b{re.escape(term)}(?:s)?\b", text_lower) for term in terms
+            )
+
+        if contains_term("plot", "land", "acre", "acer", "ground"):
             data["property_type"] = "PLOT"
-        elif any(
-            w in text_lower
-            for w in ["villa", "house", "bungalow", "duplex", "rowhouse"]
-        ):
+        elif contains_term("villa", "house", "bungalow", "duplex", "rowhouse"):
             data["property_type"] = "VILLA"
-        elif any(
-            w in text_lower
-            for w in ["shop", "office", "commercial", "showroom", "retail", "warehouse"]
+        elif contains_term(
+            "shop", "office", "commercial", "showroom", "retail", "warehouse"
         ):
             data["property_type"] = "COMMERCIAL"
-        elif any(
-            w in text_lower for w in ["apartment", "flat", "condo", "penthouse", "bhk"]
-        ):
+        elif contains_term("apartment", "flat", "condo", "penthouse", "bhk"):
             data["property_type"] = "APARTMENT"
 
         # 2. Parse Price (e.g. 5000000, 50L, 50 L, 50 Lakh, 1.2Cr, 1.2 Cr, 1.2 Crore)
@@ -95,7 +95,9 @@ class RegexParserService:
             )  # convert to sqft approx or save representation
 
         # 5. Extract Location Hints (Area/City)
-        loc_match = re.search(r"\b(?:in|at|near|location)\s+([a-zA-Z\s]{3,30})\b", text)
+        loc_match = re.search(
+            r"\b(?:in|at|near|location)\s+([a-zA-Z,\s-]{3,60})\b", text
+        )
         if loc_match:
             loc_candidate = loc_match.group(1).strip()
             for stop_word in [
@@ -133,9 +135,9 @@ class RegexParserService:
             else:
                 data["title"] = f"{type_str} in {area_val}"
 
-            city_val = data["city"] or "Mumbai"
+            city_suffix = f" in {data['city']}" if data["city"] else ""
             data["description"] = (
-                f"Beautiful {data['title']} in {city_val}. {text.strip()}{suffix}"
+                f"{data['title']}{city_suffix}. {text.strip()}{suffix}"
             )
 
         return data
@@ -150,10 +152,8 @@ class GeminiAudioTranscriptionService:
     def transcribe(audio_bytes: bytes, mime_type: str) -> str:
         api_key = getattr(settings, "GEMINI_API_KEY", "")
         if not api_key:
-            logger.warning(
-                "Gemini API key not configured for audio transcription. Using mock fallback."
-            )
-            return "3 BHK Apartment in Baner Pune, price 5 Cr, area 1500 sqft, with amenities Gym and Swimming Pool"
+            logger.warning("Gemini API key not configured for audio transcription.")
+            return ""
 
         import base64
 
@@ -198,7 +198,7 @@ class GeminiAudioTranscriptionService:
                 return transcription
         except Exception as e:
             logger.error(f"Gemini Audio transcription failed: {str(e)}")
-            return "3 BHK Apartment in Baner Pune, price 5 Cr, area 1500 sqft, with amenities Gym and Swimming Pool"
+            return ""
 
 
 class GeminiParserService:
@@ -259,6 +259,7 @@ Rules:
                 logger.info(f"Gemini raw output: {text_out}")
 
                 parsed_data = json.loads(text_out)
+                parsed_data["_extraction_source"] = "AI"
                 return parsed_data
         except Exception as e:
             logger.error(
