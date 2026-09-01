@@ -1,73 +1,484 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
 import {
-  ArrowRight, BadgeCheck, BedDouble, Building2, CalendarCheck,
-  Camera, Check, ChevronLeft, ChevronRight, Expand, Home, MapPin,
-  Maximize2, MessageCircle, Phone, Ruler, Share2, ShieldCheck, Sparkles, X,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
+import {
+  ArrowRight,
+  BedDouble,
+  Building2,
+  Camera,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  CircleAlert,
+  Home,
+  ImageIcon,
+  MapPin,
+  MessageCircle,
+  Phone,
+  Ruler,
+  Share2,
+  ShieldCheck,
 } from 'lucide-react';
+
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Button, buttonVariants } from '@/components/ui/button';
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import { fetchApi, getApiUrl } from '@/lib/api';
-import { PublicProperty } from './page';
+import {
+  normalizePublicProperty,
+  type PublicProperty,
+  type PublicPropertyImage,
+} from '@/lib/public-property';
+import { resolveBrandPalette } from '@/lib/theme';
+import { cn } from '@/lib/utils';
+
+const ACTIVE_PUBLIC_STATUSES = new Set(['AVAILABLE', 'NEGOTIATION', 'SITE_VISIT', 'BOOKED']);
+
+const AMENITY_LABELS: Record<string, string> = {
+  gym: 'Fitness centre',
+  pool: 'Swimming pool',
+  parking: 'Car parking',
+  security: '24/7 security',
+  clubhouse: 'Club house',
+  garden: 'Landscaped garden',
+  lift: 'Elevator',
+  power_backup: 'Power backup',
+  wifi: 'High-speed Wi-Fi',
+  cctv: 'CCTV surveillance',
+  intercom: 'Intercom',
+  fire_safety: 'Fire safety',
+};
 
 function formatPrice(price: number) {
-  if (price >= 10_000_000) return { main: `₹${(price / 10_000_000).toFixed(2)}`, unit: 'Crore' };
-  if (price >= 100_000) return { main: `₹${(price / 100_000).toFixed(2)}`, unit: 'Lakh' };
-  return { main: `₹${price.toLocaleString('en-IN')}`, unit: '' };
+  if (!price) return 'Price on request';
+  if (price >= 10_000_000) return `₹${(price / 10_000_000).toFixed(2)} Cr`;
+  if (price >= 100_000) return `₹${(price / 100_000).toFixed(2)} L`;
+  return `₹${price.toLocaleString('en-IN')}`;
 }
 
 function pretty(value: string) {
-  return value.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, char => char.toUpperCase());
+  return value
+    .replaceAll('_', ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-const AMENITY_LABELS: Record<string, string> = {
-  gym: 'Fitness centre', pool: 'Swimming pool', parking: 'Car parking', security: '24/7 security',
-  clubhouse: 'Club house', garden: 'Landscaped garden', lift: 'Elevator', power_backup: 'Power backup',
-  wifi: 'High-speed Wi-Fi', cctv: 'CCTV surveillance', intercom: 'Intercom', fire_safety: 'Fire safety',
-};
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'PA';
+}
 
-function Gallery({ images, title }: { images: PublicProperty['images']; title: string }) {
-  const [active, setActive] = useState(0);
+function resolvePublicAsset(candidate?: string | null) {
+  if (!candidate) return '';
+  let url = candidate;
+  if (url.includes('storage.supabase.co/storage/v1/s3/')) {
+    url = url.replace('storage.supabase.co/storage/v1/s3', 'supabase.co/storage/v1/object/public');
+  }
+  if (/^https?:\/\//i.test(url) || url.startsWith('data:')) return url;
+
+  const apiUrl = getApiUrl();
+  const browserOrigin = typeof window !== 'undefined'
+    ? window.location.origin.replace('-frontend', '-backend')
+    : '';
+  const backendOrigin = apiUrl.startsWith('http') ? apiUrl.replace(/\/api$/, '') : browserOrigin;
+  if (url.startsWith('/media/') || url.startsWith('/static/')) return `${backendOrigin}${url}`;
+  const mediaIndex = url.indexOf('/media/');
+  return mediaIndex >= 0 ? `${backendOrigin}${url.substring(mediaIndex)}` : url;
+}
+
+function readSavedBuyerField(key: 'buyer_name' | 'buyer_phone') {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem(`propertyos_${key}`) || localStorage.getItem(key) || '';
+}
+
+function BrokerAvatar({
+  name,
+  image,
+  className,
+}: {
+  name: string;
+  image?: string;
+  className?: string;
+}) {
+  return (
+    <Avatar className={className} size="lg">
+      {image ? <AvatarImage alt={`${name}, property advisor`} src={image} /> : null}
+      <AvatarFallback>{initials(name)}</AvatarFallback>
+    </Avatar>
+  );
+}
+
+function PropertySkeleton() {
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="border-b border-border bg-card">
+        <div className="mx-auto flex h-18 max-w-6xl items-center gap-3 px-4 sm:px-6">
+          <Skeleton className="size-11 rounded-xl" />
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-4 w-36" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+        </div>
+      </div>
+      <main className="mx-auto grid max-w-6xl gap-6 px-4 py-5 sm:px-6 sm:py-8">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,.75fr)]">
+          <Skeleton className="aspect-[4/3] rounded-3xl lg:aspect-auto lg:min-h-[590px]" />
+          <Card className="rounded-3xl">
+            <CardHeader>
+              <Skeleton className="h-5 w-28" />
+              <Skeleton className="mt-4 h-12 w-full" />
+              <Skeleton className="h-4 w-44" />
+            </CardHeader>
+            <CardContent className="grid gap-5">
+              <Skeleton className="h-12 w-40" />
+              <Skeleton className="h-32 w-full rounded-2xl" />
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function PropertyUnavailable({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <main className="grid min-h-screen place-items-center bg-background px-4 py-12 text-foreground">
+      <Card className="w-full max-w-md rounded-3xl text-center">
+        <CardHeader className="items-center">
+          <div className="grid size-14 place-items-center rounded-2xl bg-muted text-muted-foreground">
+            <Building2 aria-hidden="true" className="size-6" />
+          </div>
+          <CardTitle className="mt-3 text-2xl font-bold">Listing unavailable</CardTitle>
+          <CardDescription className="max-w-sm leading-6">{message}</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2">
+          <Button onClick={onRetry} type="button">Try again</Button>
+          <Link className={buttonVariants({ variant: 'outline' })} href="/support">
+            Get support
+          </Link>
+        </CardContent>
+        <CardFooter className="justify-center text-xs text-muted-foreground">
+          No account or login is required to view an active listing.
+        </CardFooter>
+      </Card>
+    </main>
+  );
+}
+
+function Gallery({
+  images,
+  title,
+  onExpanded,
+}: {
+  images: PublicPropertyImage[];
+  title: string;
+  onExpanded: () => void;
+}) {
+  const [activeIndex, setActiveIndex] = useState(0);
   const [open, setOpen] = useState(false);
   const [touchStart, setTouchStart] = useState<number | null>(null);
-  const prev = useCallback(() => setActive(index => (index - 1 + images.length) % images.length), [images.length]);
-  const next = useCallback(() => setActive(index => (index + 1) % images.length), [images.length]);
-
-  useEffect(() => {
-    if (!open) return;
-    const listener = (event: KeyboardEvent) => {
-      if (event.key === 'ArrowLeft') prev();
-      if (event.key === 'ArrowRight') next();
-      if (event.key === 'Escape') setOpen(false);
-    };
-    window.addEventListener('keydown', listener);
-    return () => window.removeEventListener('keydown', listener);
-  }, [open, next, prev]);
+  const previous = useCallback(() => {
+    setActiveIndex((index) => (index - 1 + images.length) % images.length);
+  }, [images.length]);
+  const next = useCallback(() => {
+    setActiveIndex((index) => (index + 1) % images.length);
+  }, [images.length]);
+  const setDialogOpen = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (nextOpen) onExpanded();
+  };
 
   if (!images.length) {
-    return <div className="grid min-h-[380px] place-items-center rounded-[28px] bg-[#dfe4da] text-[#66736d]"><div className="text-center"><Building2 className="mx-auto opacity-40" size={44}/><p className="mt-3 text-sm font-bold">Photos will be added shortly</p></div></div>;
+    return (
+      <div className="grid aspect-[4/3] place-items-center rounded-3xl border border-border bg-muted text-muted-foreground lg:aspect-auto lg:min-h-[590px]">
+        <div className="grid justify-items-center gap-3 text-center">
+          <div className="grid size-14 place-items-center rounded-2xl bg-card">
+            <ImageIcon aria-hidden="true" className="size-6" />
+          </div>
+          <div>
+            <p className="font-semibold text-foreground">Photos are being prepared</p>
+            <p className="mt-1 text-sm">Ask the broker for current property photos.</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
-  return <>
-    <div className={`grid gap-2 ${images.length > 1 ? 'md:grid-cols-[minmax(0,1fr)_220px]' : ''}`}>
-      <button type="button" onClick={() => setOpen(true)} onTouchStart={event=>setTouchStart(event.touches[0].clientX)} onTouchEnd={event=>{if(touchStart===null)return;const diff=touchStart-event.changedTouches[0].clientX;if(Math.abs(diff)>50)(diff>0?next:prev)();setTouchStart(null);}} className="group relative h-[330px] overflow-hidden rounded-[28px] bg-[#dfe4da] text-left sm:h-[470px]">
-        <Image src={images[active].url} alt={`${title}, photograph ${active + 1}`} fill unoptimized priority className="object-cover transition duration-700 group-hover:scale-[1.025]"/>
-        <span className="absolute inset-0 bg-gradient-to-t from-[#10221c]/45 via-transparent to-transparent"/>
-        <span className="absolute bottom-4 left-4 flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 text-xs font-black text-[#10221c] shadow-lg"><Expand size={14}/>View gallery</span>
-        <span className="absolute bottom-4 right-4 flex items-center gap-1.5 rounded-full bg-[#10221c]/85 px-3 py-2 text-xs font-bold text-white"><Camera size={14}/>{active + 1} / {images.length}</span>
-      </button>
-      {images.length > 1 && <div className="hidden gap-2 md:grid md:grid-rows-3">
-        {images.slice(1,4).map((image,index)=><button type="button" key={image.id} onClick={()=>{setActive(index+1);setOpen(true);}} className="relative overflow-hidden rounded-[20px] bg-[#dfe4da]"><Image src={image.thumbnail_url || image.url} alt={`${title}, photograph ${index+2}`} fill unoptimized className="object-cover transition hover:scale-105"/>{index===2 && images.length>4 && <span className="absolute inset-0 grid place-items-center bg-[#10221c]/65 text-sm font-black text-white">+{images.length-4} photos</span>}</button>)}
-      </div>}
-    </div>
-    {images.length>1 && <div className="mt-3 flex justify-center gap-1.5 md:hidden">{images.map((_,index)=><button key={index} aria-label={`Show photo ${index+1}`} onClick={()=>setActive(index)} className={`h-1.5 rounded-full transition-all ${index===active?'w-6 bg-[#10221c]':'w-1.5 bg-[#10221c]/20'}`}/>)}</div>}
-    {open && <div className="fixed inset-0 z-[120] grid place-items-center bg-[#07110e]/95 p-3 backdrop-blur-md" onClick={()=>setOpen(false)}><button aria-label="Close gallery" className="absolute right-5 top-5 grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white" onClick={()=>setOpen(false)}><X size={18}/></button><div className="relative flex h-[86vh] w-full max-w-6xl items-center justify-center" onClick={event=>event.stopPropagation()}><Image src={images[active].url} alt={`${title}, photograph ${active+1}`} fill unoptimized className="rounded-2xl object-contain"/>{images.length>1&&<><button aria-label="Previous photo" onClick={prev} className="absolute left-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/50 text-white"><ChevronLeft/></button><button aria-label="Next photo" onClick={next} className="absolute right-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/50 text-white"><ChevronRight/></button></>}</div></div>}
-  </>;
+  const activeImage = images[activeIndex];
+
+  return (
+    <Dialog onOpenChange={setDialogOpen} open={open}>
+      <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_180px] lg:min-h-[590px] lg:grid-cols-[minmax(0,1fr)_210px]">
+        <button
+          aria-label={`Open gallery. Showing photograph ${activeIndex + 1} of ${images.length}`}
+          className="group relative min-h-80 overflow-hidden rounded-3xl bg-muted text-left md:min-h-[520px] lg:min-h-[590px]"
+          onClick={() => setDialogOpen(true)}
+          onTouchEnd={(event) => {
+            if (touchStart === null) return;
+            const difference = touchStart - event.changedTouches[0].clientX;
+            if (Math.abs(difference) > 50) (difference > 0 ? next : previous)();
+            setTouchStart(null);
+          }}
+          onTouchStart={(event) => setTouchStart(event.touches[0].clientX)}
+          type="button"
+        >
+          <Image
+            alt={`${title}, photograph ${activeIndex + 1}`}
+            className="object-cover transition-transform duration-300 group-hover:scale-[1.015]"
+            fill
+            priority
+            sizes="(max-width: 767px) 100vw, (max-width: 1199px) 75vw, 760px"
+            src={activeImage.url}
+            unoptimized
+          />
+          <span className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-foreground/70 to-transparent" />
+          <span className="absolute bottom-4 left-4 inline-flex min-h-11 items-center gap-2 rounded-full bg-background/95 px-4 text-sm font-semibold text-foreground shadow-lg">
+            <Camera aria-hidden="true" className="size-4" />
+            View gallery
+          </span>
+          <span className="absolute right-4 bottom-4 rounded-full bg-foreground/85 px-3 py-2 text-xs font-semibold text-background">
+            {activeIndex + 1} / {images.length}
+          </span>
+        </button>
+
+        {images.length > 1 ? (
+          <div className="hidden grid-rows-3 gap-2 md:grid">
+            {images.slice(1, 4).map((image, index) => {
+              const imageIndex = index + 1;
+              return (
+                <button
+                  aria-label={`Open photograph ${imageIndex + 1}`}
+                  className="relative min-h-0 overflow-hidden rounded-2xl bg-muted"
+                  key={image.id}
+                  onClick={() => {
+                    setActiveIndex(imageIndex);
+                    setDialogOpen(true);
+                  }}
+                  type="button"
+                >
+                  <Image
+                    alt={`${title}, photograph ${imageIndex + 1}`}
+                    className="object-cover transition-transform duration-300 hover:scale-105"
+                    fill
+                    sizes="210px"
+                    src={image.thumbnail_url || image.url}
+                    unoptimized
+                  />
+                  {index === 2 && images.length > 4 ? (
+                    <span className="absolute inset-0 grid place-items-center bg-foreground/70 text-sm font-semibold text-background">
+                      +{images.length - 4} photos
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
+
+      {images.length > 1 ? (
+        <div aria-label="Choose property photograph" className="mt-2 flex justify-center gap-1 md:hidden" role="group">
+          {images.map((image, index) => (
+            <button
+              aria-label={`Show photograph ${index + 1}`}
+              aria-pressed={index === activeIndex}
+              className="grid size-11 place-items-center rounded-full"
+              key={image.id}
+              onClick={() => setActiveIndex(index)}
+              type="button"
+            >
+              <span className={cn(
+                'block h-1.5 rounded-full bg-muted-foreground/35 transition-all',
+                index === activeIndex ? 'w-6 bg-primary' : 'w-1.5',
+              )} />
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <DialogContent className="max-w-6xl gap-3 bg-foreground p-3 text-background sm:max-w-6xl" showCloseButton>
+        <DialogHeader className="sr-only">
+          <DialogTitle>{title} photo gallery</DialogTitle>
+          <DialogDescription>
+            Photograph {activeIndex + 1} of {images.length}. Use the arrow buttons to browse.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="relative h-[min(76vh,760px)] overflow-hidden rounded-2xl bg-foreground">
+          <Image
+            alt={`${title}, photograph ${activeIndex + 1}`}
+            className="object-contain"
+            fill
+            sizes="95vw"
+            src={activeImage.url}
+            unoptimized
+          />
+          {images.length > 1 ? (
+            <>
+              <Button
+                aria-label="Previous photograph"
+                className="absolute top-1/2 left-3 -translate-y-1/2"
+                onClick={previous}
+                size="icon"
+                type="button"
+                variant="secondary"
+              >
+                <ChevronLeft aria-hidden="true" />
+              </Button>
+              <Button
+                aria-label="Next photograph"
+                className="absolute top-1/2 right-3 -translate-y-1/2"
+                onClick={next}
+                size="icon"
+                type="button"
+                variant="secondary"
+              >
+                <ChevronRight aria-hidden="true" />
+              </Button>
+            </>
+          ) : null}
+        </div>
+        <p className="text-center text-xs text-background/70">
+          {activeIndex + 1} of {images.length}
+          {activeImage.caption ? ` · ${activeImage.caption}` : ''}
+        </p>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
-// Server rendering is preferred for link previews. If the backend is briefly
-// unavailable during SSR, retry from the browser so valid shared links recover.
+function ContactDialog({
+  action,
+  brokerName,
+  open,
+  onOpenChange,
+  onContinue,
+}: {
+  action: 'whatsapp' | 'call';
+  brokerName: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onContinue: (name: string, phone: string) => void;
+}) {
+  const [name, setName] = useState(() => readSavedBuyerField('buyer_name'));
+  const [phone, setPhone] = useState(() => readSavedBuyerField('buyer_phone'));
+  const [errors, setErrors] = useState<{ name?: string; phone?: string }>({});
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const normalizedName = name.trim();
+    const normalizedPhone = phone.trim();
+    const digits = normalizedPhone.replace(/\D/g, '');
+    const nextErrors = {
+      name: normalizedName ? undefined : 'Enter your name.',
+      phone: digits.length >= 7 ? undefined : 'Enter a valid phone number.',
+    };
+    setErrors(nextErrors);
+    if (nextErrors.name || nextErrors.phone) return;
+
+    localStorage.setItem('propertyos_buyer_name', normalizedName);
+    localStorage.setItem('propertyos_buyer_phone', normalizedPhone);
+    onContinue(normalizedName, normalizedPhone);
+  };
+
+  return (
+    <Dialog onOpenChange={onOpenChange} open={open}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <div className="mb-2 grid size-12 place-items-center rounded-2xl bg-accent text-accent-foreground">
+            {action === 'whatsapp'
+              ? <MessageCircle aria-hidden="true" className="size-5" />
+              : <Phone aria-hidden="true" className="size-5" />}
+          </div>
+          <DialogTitle className="text-2xl font-bold">Connect with {brokerName}</DialogTitle>
+          <DialogDescription className="leading-6">
+            Share your details once to continue to {action === 'whatsapp' ? 'WhatsApp' : 'a phone call'}.
+            They are sent only to this listing broker.
+          </DialogDescription>
+        </DialogHeader>
+        <form className="grid gap-5" onSubmit={submit}>
+          <FieldGroup>
+            <Field data-invalid={Boolean(errors.name)}>
+              <FieldLabel htmlFor="buyer-name">Your name</FieldLabel>
+              <Input
+                aria-invalid={Boolean(errors.name)}
+                autoComplete="name"
+                id="buyer-name"
+                onChange={(event) => setName(event.target.value)}
+                placeholder="e.g. Rohan Sharma"
+                value={name}
+              />
+              <FieldError>{errors.name}</FieldError>
+            </Field>
+            <Field data-invalid={Boolean(errors.phone)}>
+              <FieldLabel htmlFor="buyer-phone">Phone number</FieldLabel>
+              <Input
+                aria-invalid={Boolean(errors.phone)}
+                autoComplete="tel"
+                id="buyer-phone"
+                inputMode="tel"
+                onChange={(event) => setPhone(event.target.value)}
+                placeholder="e.g. +91 99999 99999"
+                type="tel"
+                value={phone}
+              />
+              <FieldError>{errors.phone}</FieldError>
+            </Field>
+          </FieldGroup>
+          <FieldDescription>
+            By continuing, you agree to be contacted about this property. Read our{' '}
+            <Link href="/privacy">Privacy policy</Link>.
+          </FieldDescription>
+          <Button size="lg" type="submit">
+            Continue
+            <ArrowRight data-icon="inline-end" />
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function PublicPropertyClient({
   property: initialProperty,
   slug,
@@ -75,57 +486,29 @@ export default function PublicPropertyClient({
   property: PublicProperty | null;
   slug: string;
 }) {
-  const [propertyData, setPropertyData] = useState<PublicProperty | null>(initialProperty);
+  const [property, setProperty] = useState(initialProperty);
   const [loading, setLoading] = useState(!initialProperty);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
-    if (propertyData) return;
+    if (initialProperty && retryKey === 0) return;
 
     let active = true;
     const loadProperty = async () => {
+      setLoading(true);
       try {
-        setLoading(true);
-        const data = await fetchApi(`/sharing/public/${slug}/`);
-        const prop = data.property ?? data;
-        const branding = data.branding ?? {};
-
-        const flattened: PublicProperty = {
-          id: prop.id,
-          slug: prop.slug ?? slug,
-          title: prop.title,
-          description: prop.description,
-          price: prop.price,
-          property_type: prop.property_type,
-          status: prop.status,
-          city: prop.city,
-          area: prop.area,
-          address: prop.location_address,
-          bhk: prop.bhk,
-          square_feet: prop.square_feet,
-          amenities: prop.amenities ?? [],
-          images: prop.images ?? [],
-          views: prop.views ?? 0,
-          brand_color: branding.brand_color ?? '#16c784',
-          brand_logo_url: branding.logo_url ?? null,
-          agency_name: branding.name ?? null,
-          broker: {
-            name: branding.broker_name ?? branding.name ?? 'Broker',
-            phone: branding.phone ?? branding.broker_phone ?? '',
-            whatsapp: branding.whatsapp ?? branding.broker_whatsapp ?? branding.phone ?? '',
-            avatar_url: branding.avatar_url ?? null,
-            agency_name: branding.name ?? null,
-            verified: branding.verified ?? false,
-          },
-        };
-
-        if (active) {
-          setPropertyData(flattened);
-          setLoadError(null);
+        const data = await fetchApi(`/sharing/public/${slug}/`, { skipAuth: true });
+        const normalized = normalizePublicProperty(data, slug);
+        if (!active) return;
+        setProperty(normalized);
+        setLoadError(null);
+        if (normalized.slug !== slug) {
+          window.history.replaceState(null, '', `/p/${normalized.slug}`);
         }
-      } catch (err: unknown) {
+      } catch {
         if (active) {
-          setLoadError(err instanceof Error ? err.message : 'This listing link is invalid or has been removed.');
+          setLoadError('We could not load this property page. The link may be unavailable, or the service may be temporarily offline.');
         }
       } finally {
         if (active) setLoading(false);
@@ -133,136 +516,425 @@ export default function PublicPropertyClient({
     };
 
     loadProperty();
-    return () => { active = false; };
-  }, [slug, propertyData]);
+    return () => {
+      active = false;
+    };
+  }, [initialProperty, retryKey, slug]);
 
-  if (loading) {
-    return <div className="grid min-h-screen place-items-center bg-[#f4f4ed] text-[#10221c]"><div className="text-center"><div className="mx-auto h-11 w-11 animate-spin rounded-full border-4 border-[#10221c]/10 border-t-[#10221c]"/><p className="mt-4 text-sm font-bold">Preparing property presentation…</p></div></div>;
+  if (loading) return <PropertySkeleton />;
+  if (loadError || !property) {
+    return (
+      <PropertyUnavailable
+        message={loadError || 'This listing link is invalid, expired, or has been removed.'}
+        onRetry={() => setRetryKey((value) => value + 1)}
+      />
+    );
   }
 
-  if (loadError || !propertyData) {
-    return <div className="grid min-h-screen place-items-center bg-[#f4f4ed] px-6 text-center text-[#10221c]"><div><Building2 className="mx-auto text-[#718078]" size={48}/><h1 className="mt-5 text-2xl font-black">Listing unavailable</h1><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#64736c]">{loadError || 'This listing link is invalid or has been removed.'}</p><Link href="/" className="mt-6 inline-flex rounded-xl bg-[#10221c] px-5 py-3 text-sm font-black text-[#b7f34b]">Visit PropertyOS</Link></div></div>;
-  }
-
-  return <ListingExperience property={propertyData}/>;
+  return <PublicPropertyExperience property={property} />;
 }
 
-function resolvePublicAsset(candidate?: string | null) {
-    if (!candidate) return '';
-    let url = candidate;
-    if (url.includes('storage.supabase.co/storage/v1/s3/')) {
-      url = url.replace('storage.supabase.co/storage/v1/s3', 'supabase.co/storage/v1/object/public');
-    }
-    if (/^https?:\/\//i.test(url) || url.startsWith('data:')) return url;
-    const apiUrl = getApiUrl();
-    const browserOrigin = typeof window !== 'undefined' ? window.location.origin.replace('-frontend','-backend') : '';
-    const backendOrigin = apiUrl.startsWith('http') ? apiUrl.replace(/\/api$/, '') : browserOrigin;
-    if (url.startsWith('/media/') || url.startsWith('/static/')) return `${backendOrigin}${url}`;
-    const mediaIndex = url.indexOf('/media/');
-    return mediaIndex >= 0 ? `${backendOrigin}${url.substring(mediaIndex)}` : url;
-}
-
-function savedBuyerField(key: 'buyer_name' | 'buyer_phone') {
-  if (typeof window === 'undefined') return '';
-  return localStorage.getItem(key) || '';
-}
-
-function ListingExperience({ property: initialProperty }: { property: PublicProperty }) {
+export function PublicPropertyExperience({
+  property: sourceProperty,
+  analyticsEnabled = true,
+}: {
+  property: PublicProperty;
+  analyticsEnabled?: boolean;
+}) {
   const property = useMemo(() => ({
-    ...initialProperty,
-    images: (initialProperty.images ?? []).map(image=>({...image,url:resolvePublicAsset(image.url),thumbnail_url:resolvePublicAsset(image.thumbnail_url)})),
-    brand_logo_url: resolvePublicAsset(initialProperty.brand_logo_url),
-    broker: {...initialProperty.broker, avatar_url:resolvePublicAsset(initialProperty.broker.avatar_url)},
-  }), [initialProperty]);
-  const brandColor = property.brand_color || '#b7f34b';
+    ...sourceProperty,
+    images: sourceProperty.images.map((image) => ({
+      ...image,
+      url: resolvePublicAsset(image.url),
+      thumbnail_url: resolvePublicAsset(image.thumbnail_url),
+    })),
+    brand_logo_url: resolvePublicAsset(sourceProperty.brand_logo_url),
+    broker: {
+      ...sourceProperty.broker,
+      avatar_url: resolvePublicAsset(sourceProperty.broker.avatar_url),
+    },
+  }), [sourceProperty]);
+
+  const theme = property.theme_mode;
+  const palette = resolveBrandPalette(property.brand_color, theme);
+  const themeStyle = {
+    '--ui-brand': palette.brand,
+    '--ui-brand-strong': palette.strong,
+    '--ui-brand-ink': palette.ink,
+    '--primary': palette.strong,
+    '--primary-foreground': palette.ink,
+  } as CSSProperties;
   const price = formatPrice(property.price);
-  const inactive = property.status === 'EXPIRED';
-  const [modalOpen,setModalOpen] = useState(false);
-  const [pending,setPending] = useState<'whatsapp'|'call'>('whatsapp');
-  const [name,setName] = useState(() => savedBuyerField('buyer_name'));
-  const [phone,setPhone] = useState(() => savedBuyerField('buyer_phone'));
-  const [error,setError] = useState('');
+  const location = [property.area, property.city].filter(Boolean).join(', ');
+  const inactive = !ACTIVE_PUBLIC_STATUSES.has(property.status);
+  const canWhatsapp = Boolean(property.broker.whatsapp.replace(/\D/g, ''));
+  const canCall = Boolean(property.broker.phone.replace(/\D/g, ''));
+  const [contactOpen, setContactOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'whatsapp' | 'call'>('whatsapp');
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [shareMessage, setShareMessage] = useState('');
 
-  useEffect(()=>{
-    fetch(`${getApiUrl()}/analytics/log/`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({property:property.id,share_slug:property.slug,event_type:'PAGE_VIEW'})}).catch(()=>{});
-  },[property.id,property.slug]);
+  const logEvent = useCallback((
+    eventType: 'PAGE_VIEW' | 'IMAGE_VIEW' | 'WHATSAPP_CLICK' | 'PHONE_CLICK',
+    buyer?: { name: string; phone: string },
+  ) => {
+    if (!analyticsEnabled) return;
+    const payload: Record<string, string> = {
+      share_slug: property.slug,
+      event_type: eventType,
+    };
+    if (property.id) payload.property = property.id;
+    if (buyer) {
+      payload.buyer_name = buyer.name;
+      payload.buyer_phone = buyer.phone;
+    }
+    fetch(`${getApiUrl()}/analytics/log/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      keepalive: true,
+    }).catch(() => undefined);
+  }, [analyticsEnabled, property.id, property.slug]);
 
-  const execute = useCallback((action:'whatsapp'|'call',buyerName:string,buyerPhone:string)=>{
-    const eventType = action==='whatsapp'?'WHATSAPP_CLICK':'PHONE_CLICK';
-    fetch(`${getApiUrl()}/analytics/log/`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({property:property.id,share_slug:property.slug,event_type:eventType,buyer_name:buyerName,buyer_phone:buyerPhone})}).catch(()=>{});
-    if(action==='whatsapp'){
-      const destination=property.broker.whatsapp.replace(/\D/g,'');
-      const message=encodeURIComponent(`Hi ${property.broker.name}, I am interested in ${property.title}.\n${window.location.href}`);
-      window.open(`https://wa.me/${destination}?text=${message}`,'_blank');
-    } else window.location.href=`tel:${property.broker.phone}`;
-  },[property]);
+  useEffect(() => {
+    if (!analyticsEnabled) return;
+    const storageKey = `propertyos_page_view:${property.slug}`;
+    try {
+      if (sessionStorage.getItem(storageKey)) return;
+      sessionStorage.setItem(storageKey, '1');
+    } catch {
+      // Storage may be unavailable in strict privacy mode; analytics stays best-effort.
+    }
+    logEvent('PAGE_VIEW');
+  }, [analyticsEnabled, logEvent, property.slug]);
 
-  const requestContact = (action:'whatsapp'|'call') => {
-    if(inactive) return;
-    const savedName=localStorage.getItem('buyer_name');
-    const savedPhone=localStorage.getItem('buyer_phone');
-    if(savedName&&savedPhone) execute(action,savedName,savedPhone);
-    else {setPending(action);setModalOpen(true);}
+  const completeContact = useCallback((action: 'whatsapp' | 'call', name: string, phone: string) => {
+    logEvent(action === 'whatsapp' ? 'WHATSAPP_CLICK' : 'PHONE_CLICK', { name, phone });
+    setContactOpen(false);
+
+    if (action === 'whatsapp') {
+      const destination = property.broker.whatsapp.replace(/\D/g, '');
+      const message = [
+        `Hi ${property.broker.name},`,
+        `I am interested in ${property.title}.`,
+        location ? `Location: ${location}` : '',
+        `Price: ${price}`,
+        window.location.href,
+      ].filter(Boolean).join('\n');
+      window.open(`https://wa.me/${destination}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    window.location.assign(`tel:${property.broker.phone}`);
+  }, [location, logEvent, price, property.broker.name, property.broker.phone, property.broker.whatsapp, property.title]);
+
+  const requestContact = (action: 'whatsapp' | 'call') => {
+    if (inactive) return;
+    if (action === 'whatsapp' && !canWhatsapp) return;
+    if (action === 'call' && !canCall) return;
+
+    const savedName = readSavedBuyerField('buyer_name');
+    const savedPhone = readSavedBuyerField('buyer_phone');
+    if (savedName && savedPhone) {
+      completeContact(action, savedName, savedPhone);
+      return;
+    }
+    setPendingAction(action);
+    setContactOpen(true);
   };
-  const submitContact = (event:FormEvent) => {
-    event.preventDefault();
-    if(!name.trim()||!phone.trim()){setError('Please enter your name and phone number.');return;}
-    localStorage.setItem('buyer_name',name.trim());localStorage.setItem('buyer_phone',phone.trim());
-    setModalOpen(false);setError('');execute(pending,name.trim(),phone.trim());
-  };
+
   const share = async () => {
-    if(navigator.share) await navigator.share({title:property.title,text:`${property.title} in ${property.area}, ${property.city}`,url:window.location.href});
-    else {await navigator.clipboard.writeText(window.location.href);}
+    setShareMessage('');
+    const shareData = {
+      title: property.title,
+      text: `${property.title}${location ? ` in ${location}` : ''} · ${price}`,
+      url: window.location.href,
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        setShareMessage('Share options opened.');
+      } else {
+        await navigator.clipboard.writeText(window.location.href);
+        setShareMessage('Link copied.');
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      setShareMessage('Could not share automatically. Copy the link from your address bar.');
+    }
   };
-  const specItems = [
-    property.bhk ? {icon:<BedDouble/>,value:`${property.bhk} BHK`,label:'Configuration'} : null,
-    property.square_feet ? {icon:<Ruler/>,value:Number(property.square_feet).toLocaleString('en-IN'),label:'Square feet'} : null,
-    {icon:<Home/>,value:pretty(property.property_type),label:'Property type'},
-    {icon:<MapPin/>,value:property.area,label:property.city},
-  ].filter(Boolean) as {icon:ReactNode;value:string;label:string}[];
 
-  return <>
-    <style>{`:root{--listing-brand:${brandColor}}`}</style>
-    <div className="min-h-screen bg-[#f4f4ed] pb-24 text-[#10221c] selection:bg-[#b7f34b]">
-      <header className="sticky top-0 z-40 border-b border-[#10221c]/10 bg-[#f4f4ed]/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-[70px] max-w-6xl items-center justify-between px-4 sm:px-6">
-          <div className="flex min-w-0 items-center gap-3"><span className="relative grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-xl bg-[#10221c] text-sm font-black text-[#b7f34b]"><span>{property.broker.name[0]?.toUpperCase()}</span>{property.brand_logo_url&&<span aria-hidden className="absolute inset-0 bg-contain bg-center bg-no-repeat" style={{backgroundImage:`url(${property.brand_logo_url})`}}/>}</span><div className="min-w-0"><p className="truncate text-sm font-black tracking-[-.02em]">{property.agency_name || property.broker.agency_name || property.broker.name}</p><p className="text-[10px] font-bold uppercase tracking-[.12em] text-[#718078]">Exclusive property presentation</p></div></div>
-          <button onClick={share} className="flex items-center gap-2 rounded-full border border-[#10221c]/15 bg-white/50 px-3 py-2 text-xs font-black"><Share2 size={15}/><span className="hidden sm:inline">Share listing</span></button>
+  const factItems = [
+    property.bhk ? { icon: <BedDouble />, value: `${property.bhk} BHK`, label: 'Configuration' } : null,
+    property.square_feet
+      ? { icon: <Ruler />, value: Number(property.square_feet).toLocaleString('en-IN'), label: 'Square feet' }
+      : null,
+    { icon: <Home />, value: pretty(property.property_type), label: 'Property type' },
+    location ? { icon: <MapPin />, value: property.area || property.city, label: property.city || 'Locality' } : null,
+  ].filter(Boolean) as Array<{ icon: ReactNode; value: string; label: string }>;
+
+  const presenter = property.agency_name || property.broker.agency_name || property.broker.name;
+  const brokerTitle = property.broker.professional_title || 'Property advisor';
+  const descriptionIsLong = property.description.length > 460;
+
+  return (
+    <div
+      className={cn('min-h-screen bg-background pb-28 text-foreground selection:bg-primary/25 lg:pb-0', theme === 'DARK' && 'dark')}
+      data-theme={theme.toLowerCase()}
+      style={themeStyle}
+    >
+      <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur-xl">
+        <div className="mx-auto flex min-h-18 max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="relative grid size-11 shrink-0 place-items-center overflow-hidden rounded-xl bg-primary text-sm font-bold text-primary-foreground">
+              {property.brand_logo_url ? (
+                <Image
+                  alt={`${presenter} logo`}
+                  className="object-contain p-1.5"
+                  fill
+                  sizes="44px"
+                  src={property.brand_logo_url}
+                  unoptimized
+                />
+              ) : initials(presenter)}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold">{presenter}</p>
+              <p className="truncate text-xs text-muted-foreground">Presented by your property advisor</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button aria-label="Share this property" className="sm:hidden" onClick={share} size="icon" type="button" variant="ghost">
+              <Share2 aria-hidden="true" />
+            </Button>
+            <Button className="hidden sm:inline-flex" onClick={share} type="button" variant="outline">
+              <Share2 data-icon="inline-start" />
+              Share
+            </Button>
+          </div>
         </div>
+        <p aria-live="polite" className="sr-only">{shareMessage}</p>
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-8">
-        {inactive&&<div className="mb-5 rounded-2xl border border-[#b84632]/20 bg-[#fff0ec] p-4 text-sm font-bold text-[#a23c29]">This listing is currently inactive. Contact actions have been paused.</div>}
-        <Gallery images={property.images} title={property.title}/>
+        {inactive ? (
+          <Alert className="mb-5" variant="destructive">
+            <CircleAlert />
+            <AlertTitle>This listing is no longer active</AlertTitle>
+            <AlertDescription>Property details remain visible, but contact actions have been paused.</AlertDescription>
+          </Alert>
+        ) : null}
 
-        <section className="mt-7 grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-12">
-          <div>
-            <div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-[#dcebc9] px-3 py-1.5 text-[10px] font-black uppercase tracking-[.12em] text-[#315f2b]">{pretty(property.status)}</span><span className="rounded-full border border-[#10221c]/10 bg-white/55 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.12em] text-[#64736c]">{pretty(property.property_type)}</span><span className="flex items-center gap-1 text-[11px] font-bold text-[#64736c]"><BadgeCheck size={14} className="text-[#3d7d43]"/>Broker-listed</span></div>
-            <h1 className="mt-5 max-w-3xl text-3xl font-black leading-[1.06] tracking-[-.05em] sm:text-5xl">{property.title}</h1>
-            <p className="mt-3 flex items-start gap-2 text-sm text-[#64736c]"><MapPin size={17} className="mt-0.5 shrink-0"/>{property.address ? `${property.address}, ` : ''}{property.area}, {property.city}</p>
-            <div className="mt-6 flex items-end gap-2"><strong className="text-4xl font-black tracking-[-.055em] sm:text-5xl">{price.main}</strong>{price.unit&&<span className="pb-1 text-lg font-bold text-[#64736c]">{price.unit}</span>}</div>
+        <section className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,.75fr)] lg:gap-6">
+          <Gallery images={property.images} onExpanded={() => logEvent('IMAGE_VIEW')} title={property.title} />
 
-            <div className="mt-8 grid grid-cols-2 overflow-hidden rounded-[22px] border border-[#10221c]/10 bg-white/55 sm:grid-cols-4">{specItems.map((item,index)=><div key={`${item.value}-${index}`} className="border-b border-r border-[#10221c]/10 p-4 last:border-r-0 sm:border-b-0"><span className="text-[#708077] [&>svg]:h-5 [&>svg]:w-5">{item.icon}</span><strong className="mt-4 block text-base font-black">{item.value}</strong><span className="mt-1 block text-[10px] font-bold uppercase tracking-[.1em] text-[#7b8780]">{item.label}</span></div>)}</div>
+          <Card className="rounded-3xl lg:min-h-[590px]">
+            <div aria-hidden="true" className="h-1.5 w-full" style={{ backgroundColor: palette.brand }} />
+            <CardHeader className="gap-3 sm:px-6 sm:pt-6">
+              <div className="flex flex-wrap gap-2">
+                <Badge>{pretty(property.status)}</Badge>
+                <Badge variant="secondary">{pretty(property.property_type)}</Badge>
+                <Badge variant="outline">
+                  <ShieldCheck data-icon="inline-start" />
+                  Broker-listed
+                </Badge>
+              </div>
+              <CardTitle className="text-3xl leading-tight font-bold tracking-[-0.035em] sm:text-4xl">
+                {property.title}
+              </CardTitle>
+              {location ? (
+                <CardDescription className="flex items-start gap-2 text-sm">
+                  <MapPin aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                  {location}
+                </CardDescription>
+              ) : null}
+            </CardHeader>
+            <CardContent className="grid flex-1 gap-6 sm:px-6">
+              <div>
+                <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Broker-provided price</p>
+                <p className="mt-2 text-4xl font-bold tracking-[-0.04em]">{price}</p>
+              </div>
 
-            <section className="mt-10 border-t border-[#10221c]/10 pt-8"><p className="text-[11px] font-black uppercase tracking-[.18em] text-[#ff715b]">The property</p><h2 className="mt-2 text-2xl font-black tracking-[-.035em]">Designed to help you decide, not just browse.</h2><p className="mt-5 whitespace-pre-line text-[15px] leading-8 text-[#586861]">{property.description}</p></section>
+              <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-border bg-muted/40">
+                {factItems.map((item) => (
+                  <div className="min-h-28 border-r border-b border-border p-4 last:border-r-0" key={`${item.label}-${item.value}`}>
+                    <span className="text-muted-foreground [&>svg]:size-5">{item.icon}</span>
+                    <strong className="mt-3 block leading-snug">{item.value}</strong>
+                    <span className="mt-1 block text-xs text-muted-foreground">{item.label}</span>
+                  </div>
+                ))}
+              </div>
 
-            {property.amenities.length>0&&<section className="mt-10 border-t border-[#10221c]/10 pt-8"><div className="flex items-end justify-between gap-4"><div><p className="text-[11px] font-black uppercase tracking-[.18em] text-[#ff715b]">Included</p><h2 className="mt-2 text-2xl font-black tracking-[-.035em]">Amenities and conveniences</h2></div><Sparkles className="text-[#ff715b]"/></div><div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3">{property.amenities.map(amenity=><div key={amenity} className="flex items-center gap-3 rounded-2xl border border-[#10221c]/10 bg-white/50 px-4 py-3.5 text-sm font-bold"><span className="grid h-7 w-7 place-items-center rounded-full bg-[#dcebc9] text-[#315f2b]"><Check size={14}/></span>{AMENITY_LABELS[amenity] || pretty(amenity)}</div>)}</div></section>}
+              <Alert>
+                <ShieldCheck />
+                <AlertTitle>Details provided by broker</AlertTitle>
+                <AlertDescription>
+                  Confirm availability, measurements, documents, and final terms directly with the broker.
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+            <CardFooter className="grid gap-2 sm:grid-cols-2">
+              <Button disabled={inactive || !canWhatsapp} onClick={() => requestContact('whatsapp')} size="lg" type="button">
+                <MessageCircle data-icon="inline-start" />
+                WhatsApp
+              </Button>
+              <Button disabled={inactive || !canCall} onClick={() => requestContact('call')} size="lg" type="button" variant="outline">
+                <Phone data-icon="inline-start" />
+                Call
+              </Button>
+            </CardFooter>
+          </Card>
+        </section>
 
-            <section className="mt-10 border-t border-[#10221c]/10 pt-8"><p className="text-[11px] font-black uppercase tracking-[.18em] text-[#ff715b]">Location</p><h2 className="mt-2 text-2xl font-black tracking-[-.035em]">Explore {property.area}</h2><div className="relative mt-6 min-h-[250px] overflow-hidden rounded-[24px] bg-[#dfe4da] p-7"><div className="absolute inset-0 opacity-30 [background-image:linear-gradient(#718078_1px,transparent_1px),linear-gradient(90deg,#718078_1px,transparent_1px)] [background-size:36px_36px] [mask-image:radial-gradient(circle_at_center,black,transparent_75%)]"/><div className="relative z-10 flex min-h-[196px] items-center justify-center"><div className="rounded-2xl bg-[#10221c] p-5 text-center text-white shadow-2xl"><span className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-[#b7f34b] text-[#10221c]"><MapPin size={20}/></span><strong className="mt-3 block">{property.area}, {property.city}</strong>{property.address&&<span className="mt-1 block max-w-xs text-xs text-white/60">{property.address}</span>}</div></div></div><p className="mt-3 text-xs text-[#718078]">Exact directions and site-visit details are available directly from the listing broker.</p></section>
+        <section className="mt-6 grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-8">
+          <div className="grid gap-6">
+            <Card className="rounded-3xl">
+              <CardHeader>
+                <CardDescription>The property</CardDescription>
+                <CardTitle className="text-2xl font-bold">A clear presentation, without the photo clutter.</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {property.description ? (
+                  <>
+                    <p className={cn(
+                      'whitespace-pre-line text-[15px] leading-7 text-muted-foreground',
+                      descriptionIsLong && !descriptionExpanded && 'line-clamp-6',
+                    )}>
+                      {property.description}
+                    </p>
+                    {descriptionIsLong ? (
+                      <Button className="mt-3" onClick={() => setDescriptionExpanded((value) => !value)} type="button" variant="link">
+                        {descriptionExpanded ? 'Show less' : 'Read full description'}
+                      </Button>
+                    ) : null}
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Ask the broker for a detailed property description.</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {property.amenities.length ? (
+              <Card className="rounded-3xl">
+                <CardHeader>
+                  <CardDescription>What is included</CardDescription>
+                  <CardTitle className="text-2xl font-bold">Amenities and conveniences</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {property.amenities.map((amenity) => (
+                      <li className="flex min-h-14 items-center gap-3 rounded-2xl border border-border bg-muted/35 px-3 py-3 text-sm font-medium" key={amenity}>
+                        <span className="grid size-7 shrink-0 place-items-center rounded-full bg-accent text-accent-foreground">
+                          <Check aria-hidden="true" className="size-4" />
+                        </span>
+                        {AMENITY_LABELS[amenity] || pretty(amenity)}
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            ) : null}
+
+            <Card className="rounded-3xl">
+              <CardHeader>
+                <CardDescription>Approximate location</CardDescription>
+                <CardTitle className="text-2xl font-bold">{location || 'Location available from broker'}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="public-location-grid grid min-h-56 place-items-center rounded-2xl border border-border bg-muted/45 p-6 text-center">
+                  <div className="rounded-2xl bg-card p-5 shadow-sm ring-1 ring-border">
+                    <span className="mx-auto grid size-11 place-items-center rounded-full bg-primary text-primary-foreground">
+                      <MapPin aria-hidden="true" className="size-5" />
+                    </span>
+                    <strong className="mt-3 block">{location || 'Contact broker for locality'}</strong>
+                    <span className="mt-1 block text-xs text-muted-foreground">Exact location is shared privately</span>
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter className="text-xs leading-5 text-muted-foreground">
+                The public page intentionally shows only the area and city. Ask the broker for directions before a visit.
+              </CardFooter>
+            </Card>
           </div>
 
-          <aside className="lg:relative"><div className="space-y-4 lg:sticky lg:top-24">
-            <div className="rounded-[26px] bg-[#10221c] p-6 text-white shadow-[0_25px_70px_rgba(16,34,28,.16)]"><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#b7f34b]">Your direct property contact</p><div className="mt-5 flex items-center gap-3"><span className="relative grid h-12 w-12 place-items-center overflow-hidden rounded-2xl bg-[#b7f34b] text-lg font-black text-[#10221c]"><span>{property.broker.name[0]?.toUpperCase()}</span>{property.broker.avatar_url&&<span aria-hidden className="absolute inset-0 bg-cover bg-center" style={{backgroundImage:`url(${property.broker.avatar_url})`}}/>}</span><div className="min-w-0"><strong className="block truncate">{property.broker.name}</strong><p className="truncate text-xs text-white/55">{property.broker.agency_name || property.agency_name || 'Independent property advisor'}</p></div></div><div className="mt-6 space-y-2"><button disabled={inactive} onClick={()=>requestContact('whatsapp')} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#b7f34b] text-sm font-black text-[#10221c] disabled:opacity-40"><MessageCircle size={17}/>Ask on WhatsApp</button><button disabled={inactive} onClick={()=>requestContact('call')} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 text-sm font-black disabled:opacity-40"><Phone size={16}/>Call broker</button></div><div className="mt-5 space-y-3 border-t border-white/10 pt-5 text-[11px] leading-5 text-white/60"><p className="flex gap-2"><CalendarCheck size={15} className="mt-0.5 shrink-0 text-[#b7f34b]"/>Ask for availability, a video tour, price details or a site-visit slot.</p><p className="flex gap-2"><ShieldCheck size={15} className="mt-0.5 shrink-0 text-[#b7f34b]"/>Your contact information goes only to this listing broker.</p></div></div>
-            <div className="rounded-[22px] border border-[#10221c]/10 bg-white/55 p-5"><div className="flex items-center justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.14em] text-[#718078]">Listing engagement</p><strong className="mt-1 block text-2xl">{property.views.toLocaleString('en-IN')} views</strong></div><span className="grid h-10 w-10 place-items-center rounded-full bg-[#dcebc9] text-[#315f2b]"><Maximize2 size={18}/></span></div><p className="mt-3 text-xs leading-5 text-[#718078]">Share the page with family or your advisor before scheduling a visit.</p><button onClick={share} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-[#10221c]/10 py-3 text-xs font-black"><Share2 size={15}/>Share this property</button></div>
-          </div></aside>
+          <aside className="lg:sticky lg:top-24">
+            <Card className="rounded-3xl">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <BrokerAvatar className="size-14" image={property.broker.avatar_url} name={property.broker.name} />
+                  <div className="min-w-0">
+                    <CardTitle className="truncate text-lg font-bold">{property.broker.name}</CardTitle>
+                    <CardDescription className="truncate">{brokerTitle}</CardDescription>
+                  </div>
+                </div>
+                <CardAction><Badge variant="outline">Broker-listed</Badge></CardAction>
+              </CardHeader>
+              <CardContent className="grid gap-5">
+                <Separator />
+                <div>
+                  <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Direct property contact</p>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    Ask about current availability, documents, a video tour, or a site visit.
+                  </p>
+                </div>
+                <div className="grid gap-2">
+                  <Button disabled={inactive || !canWhatsapp} onClick={() => requestContact('whatsapp')} size="lg" type="button">
+                    <MessageCircle data-icon="inline-start" />
+                    Ask on WhatsApp
+                  </Button>
+                  <Button disabled={inactive || !canCall} onClick={() => requestContact('call')} size="lg" type="button" variant="outline">
+                    <Phone data-icon="inline-start" />
+                    Call broker
+                  </Button>
+                </div>
+                <p className="flex gap-2 text-xs leading-5 text-muted-foreground">
+                  <ShieldCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-accent-foreground" />
+                  Contact details entered here are sent only to this listing broker.
+                </p>
+              </CardContent>
+              {property.broker.public_slug ? (
+                <CardFooter>
+                  <Link className={cn(buttonVariants({ variant: 'outline' }), 'w-full')} href={`/b/${property.broker.public_slug}`}>
+                    View broker digital office
+                  </Link>
+                </CardFooter>
+              ) : null}
+            </Card>
+            <div className="mt-4 text-center text-xs text-muted-foreground">
+              Presented by <strong className="text-foreground">{presenter}</strong>
+            </div>
+          </aside>
         </section>
       </main>
 
-      <footer className="mt-10 border-t border-[#10221c]/10 px-4 py-8 text-center text-xs text-[#718078]"><p>Presented by <strong className="text-[#10221c]">{property.agency_name || property.broker.name}</strong></p><p className="mt-2">Digital property experience powered by <span className="font-black text-[#3f6e3f]">PropertyOS</span></p></footer>
+      <footer className="mt-10 border-t border-border px-4 py-8 text-center text-xs text-muted-foreground">
+        <p>Presented by <strong className="text-foreground">{presenter}</strong></p>
+        <p className="mt-2">Powered by <span className="font-semibold text-foreground">PropertyOS</span></p>
+      </footer>
+
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] shadow-[0_-12px_36px_rgba(0,0,0,.12)] backdrop-blur-xl lg:hidden">
+        <div className="mx-auto flex max-w-xl items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <span className="block text-xs text-muted-foreground">Broker price</span>
+            <strong className="block truncate text-base">{price}</strong>
+          </div>
+          <Button aria-label="Call broker" disabled={inactive || !canCall} onClick={() => requestContact('call')} size="icon" type="button" variant="outline">
+            <Phone aria-hidden="true" />
+          </Button>
+          <Button disabled={inactive || !canWhatsapp} onClick={() => requestContact('whatsapp')} type="button">
+            <MessageCircle data-icon="inline-start" />
+            WhatsApp
+          </Button>
+        </div>
+      </div>
+
+      <ContactDialog
+        action={pendingAction}
+        brokerName={property.broker.name}
+        onContinue={(name, phone) => completeContact(pendingAction, name, phone)}
+        onOpenChange={setContactOpen}
+        open={contactOpen}
+      />
     </div>
-
-    <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#10221c]/95 p-3 text-white backdrop-blur-xl lg:hidden"><div className="mx-auto flex max-w-xl items-center gap-2"><div className="min-w-0 flex-1"><span className="block text-[9px] uppercase tracking-widest text-white/50">Price</span><strong className="truncate text-base">{price.main} {price.unit}</strong></div><button disabled={inactive} onClick={()=>requestContact('call')} className="grid h-11 w-11 place-items-center rounded-xl border border-white/15 disabled:opacity-40"><Phone size={17}/></button><button disabled={inactive} onClick={()=>requestContact('whatsapp')} className="flex h-11 items-center gap-2 rounded-xl bg-[#b7f34b] px-4 text-sm font-black text-[#10221c] disabled:opacity-40"><MessageCircle size={17}/>Enquire</button></div></div>
-
-    {modalOpen&&<div className="fixed inset-0 z-[130] grid place-items-center bg-[#07110e]/80 p-4 backdrop-blur-md"><div className="relative w-full max-w-md rounded-[26px] bg-[#f4f4ed] p-6 text-[#10221c] shadow-2xl"><button onClick={()=>setModalOpen(false)} className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-[#10221c]/5"><X size={17}/></button><span className="grid h-12 w-12 place-items-center rounded-2xl bg-[#dcebc9] text-[#315f2b]"><MessageCircle/></span><h2 className="mt-5 text-2xl font-black tracking-[-.04em]">Connect with {property.broker.name}</h2><p className="mt-2 text-sm leading-6 text-[#64736c]">Share your details once to continue to {pending==='whatsapp'?'WhatsApp':'a phone call'}. They are sent only to this broker.</p><form onSubmit={submitContact} className="mt-6 space-y-4"><label className="block text-xs font-black">Your name<input value={name} onChange={event=>setName(event.target.value)} placeholder="e.g. Rohan Sharma" className="mt-2 h-12 w-full rounded-xl border border-[#10221c]/15 bg-white/60 px-4 text-sm outline-none focus:border-[#315f2b]"/></label><label className="block text-xs font-black">Phone number<input value={phone} onChange={event=>setPhone(event.target.value)} placeholder="e.g. +91 99999 99999" type="tel" className="mt-2 h-12 w-full rounded-xl border border-[#10221c]/15 bg-white/60 px-4 text-sm outline-none focus:border-[#315f2b]"/></label>{error&&<p className="text-xs font-bold text-[#b84632]">{error}</p>}<button className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#10221c] text-sm font-black text-[#b7f34b]">Continue <ArrowRight size={16}/></button><p className="text-center text-[10px] leading-4 text-[#718078]">By continuing, you agree to be contacted about this property.</p></form></div></div>}
-  </>;
+  );
 }

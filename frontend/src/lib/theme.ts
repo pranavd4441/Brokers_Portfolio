@@ -46,8 +46,8 @@ export function resolveBrandPalette(value: string | null | undefined, theme: The
   const strong = contrastRatio(brand, THEME_SURFACES[theme]) >= 4.5
     ? brand
     : THEME_FALLBACKS[theme];
-  const whiteContrast = contrastRatio(brand, '#FFFFFF');
-  const darkContrast = contrastRatio(brand, '#10211A');
+  const whiteContrast = contrastRatio(strong, '#FFFFFF');
+  const darkContrast = contrastRatio(strong, '#10211A');
 
   return {
     brand,
