@@ -4,8 +4,8 @@
 
 **Scope:** Product interface, responsive behavior, localization, themes, states, and the minimum contracts required by the UI
 
-**Last updated:** 26 August 2026
-**Visual references:** [`propertyos-ui-concepts-2026-08-26`](../propertyos-ui-concepts-2026-08-26/)
+**Last updated:** 2 September 2026
+**Visual references:** [`propertyos-ui-concepts-2026-08-26`](../propertyos-ui-concepts-2026-08-26/) and [`DESIGN_FOUNDATION_V2.md`](./DESIGN_FOUNDATION_V2.md)
 
 ## 1. Purpose and authority
 
@@ -14,6 +14,17 @@ This document is the single source of truth for the next PropertyOS UI implement
 When a concept image, existing screen, old product document, or implementation detail conflicts with this specification, this specification wins for UI behavior. Existing API and model behavior remains authoritative for data until an addition in [Section 14](#14-minimum-interface-contracts-not-yet-implemented) is implemented and tested.
 
 This is a UI specification, not an authorization to change application code, database models, production configuration, or legal copy. The generated images remain references; they are not pixel-perfect requirements.
+
+### 1.1 Approved visual direction
+
+The implementation uses the **Quiet Estate** direction defined in `DESIGN_FOUNDATION_V2.md`: quiet confidence, operational clarity, and human trust. Its operating principle is **luxury outside, efficiency inside**.
+
+- The authenticated broker workspace is compact, information-dense, and action-led. It must not resemble a marketing landing page or use oversized titles, banners, and cards to fill space.
+- Public property pages are image-led and editorial. Broker storefronts are identity-led and curated.
+- Desktop navigation is 216–224 px wide with 40–44 px rows. The workspace has one persistent create-listing action, not repeated primary actions in the shell and page body.
+- Broker accent colour occupies no more than roughly 10–15% of an authenticated screen. Neutral surfaces carry the hierarchy.
+- Photos, typography, spacing, and data clarity create the premium feeling. Gradients, glass effects, decorative glow, emoji icons, and excessive shadows do not.
+- The route mockups approved on 2 September 2026 supersede the scale and density of the earlier generated concepts while retaining their product hierarchy.
 
 ## 2. Product position
 
@@ -96,7 +107,7 @@ The following must not appear as real values in production UI:
 - Verification status or source that has not been recorded by a verification system.
 - Exact public location or map pin derived from `location_address`.
 - Saved shortlists, comparisons, or structured site-visit slots.
-- Server-side drafts; the current Property model has no `DRAFT` state.
+- Draft behavior beyond the implemented WhatsApp-import `DRAFT` workflow. Manual listing creation must not claim server autosave unless its create endpoint explicitly returns a draft.
 - State and PIN code fields; they are not accepted by the current property serializer.
 
 Marketing demo data may illustrate a workflow only when visibly labelled **Example** or **Demo** and never mixed with an authenticated broker's real metrics.
@@ -109,20 +120,20 @@ All components consume semantic tokens. Raw concept-image colours must not be co
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `--ui-bg` | `#F6F2E9` | `#0D1412` | Page background |
-| `--ui-surface` | `#FFFDF8` | `#15201C` | Main cards, menus, inputs |
-| `--ui-surface-muted` | `#EEEAE0` | `#1B2924` | Secondary panels, chips |
-| `--ui-surface-raised` | `#FFFFFF` | `#21302A` | Raised dialogs and sticky actions |
-| `--ui-text` | `#17211D` | `#F4F1E8` | Primary text |
-| `--ui-text-muted` | `#66716B` | `#AAB5AF` | Secondary text |
-| `--ui-border` | `#D9D4C9` | `#314039` | Dividers and fields |
-| `--ui-focus` | `#1769AA` | `#79BFFF` | Keyboard focus ring |
-| `--ui-brand-fallback` | `#174D3C` | `#63C59B` | Safe PropertyOS/broker fallback |
-| `--ui-accent-warm` | `#B97718` | `#E0A84C` | Highlight, not body text |
-| `--ui-terracotta` | `#C94F3D` | `#F07B66` | Sparse editorial accent |
-| `--ui-success` | `#2F7D53` | `#63C59B` | Success |
-| `--ui-warning` | `#8A5B0B` | `#F1BE63` | Warning |
-| `--ui-danger` | `#B33E32` | `#FF8A7B` | Error/destructive |
+| `--ui-bg` | `#F6F7F5` | `#0F1311` | Page background |
+| `--ui-surface` | `#FFFFFF` | `#171C19` | Main cards, menus, inputs |
+| `--ui-surface-muted` | `#F0F2EF` | `#202622` | Secondary panels, chips |
+| `--ui-surface-raised` | `#FFFFFF` | `#252C28` | Raised dialogs and sticky actions |
+| `--ui-text` | `#17201C` | `#F5F7F5` | Primary text |
+| `--ui-text-muted` | `#66706B` | `#A7B0AA` | Secondary text |
+| `--ui-border` | `#E0E4E1` | `#303833` | Dividers and fields |
+| `--ui-focus` | `#285FC7` | `#86B8FF` | Keyboard focus ring |
+| `--ui-brand-fallback` | `#17624A` | `#63C59B` | Safe PropertyOS/broker fallback |
+| `--ui-accent-warm` | `#B87925` | `#E0A552` | Highlight, not body text |
+| `--ui-terracotta` | `#B85E48` | `#E58670` | Sparse editorial accent |
+| `--ui-success` | `#267553` | `#63C59B` | Success |
+| `--ui-warning` | `#8B5D13` | `#EDBC61` | Warning |
+| `--ui-danger` | `#B44238` | `#FF8C80` | Error/destructive |
 
 Status colour is never the only status signal. Every state uses text and, where helpful, an icon.
 
@@ -148,7 +159,7 @@ Status colour is never the only status signal. Every state uses text and, where 
 | Role | Mobile | Desktop | Weight / line height |
 |---|---:|---:|---|
 | Display | 36 px | 56 px | 700 / 1.05 |
-| Page title | 28 px | 36 px | 700 / 1.15 |
+| Page title | 28 px | 32 px | 700 / 1.15 |
 | Section title | 20 px | 24 px | 700 / 1.25 |
 | Card title | 17 px | 18 px | 650 / 1.3 |
 | Body | 16 px | 16 px | 400 / 1.55 |
@@ -369,13 +380,13 @@ If the endpoint already reports progress, it is authoritative. Do not maintain a
 
 **Mobile layout:**
 
-1. Greeting, current date, and **New listing**.
+1. Greeting and compact page context. The persistent shell action is the only **New listing** action above the fold.
 2. Onboarding card when incomplete.
 3. **Needs attention** list ordered by: new leads; CTA leads; no update for 48 hours; listings expiring within seven days; listings without images.
 4. Compact supported snapshot: active listings, page views, WhatsApp clicks, phone clicks.
 5. Recent listings and recent leads, each capped at three with **View all**.
 
-**Desktop layout:** action queue takes two-thirds width; compact metrics/recent activity uses the remaining column. A seven-day views/clicks chart may appear below because that aggregate is supported.
+**Desktop layout:** one compact metrics row appears first, followed by an asymmetric workspace: action queue takes roughly three-fifths width and supported activity takes the remaining column. A seven-day views/clicks chart may appear because that aggregate is supported. Recent listings/leads remain compact secondary panels.
 
 Every action item states its derivation, for example **New WhatsApp enquiry** or **No update for 2 days**. Do not show AI priorities, viewer names, intent labels, or future revenue.
 
@@ -385,9 +396,9 @@ Every action item states its derivation, for example **New WhatsApp enquiry** or
 
 **Data source:** `GET /api/properties/` and existing update/delete/share operations.
 
-**Mobile layout:** search; filter sheet for status/type/city/area; result count; property cards; floating or sticky **New listing** action. Cards show only the fields defined in [Section 6.3](#63-cards-and-lists). Default sort is newest first, matching the backend ordering.
+**Mobile layout:** search; compact native filters for status/type; result count; property cards; persistent shell **New listing** action. Cards show only the fields defined in [Section 6.3](#63-cards-and-lists). Default sort is newest first, matching the backend ordering.
 
-**Desktop layout:** toolbar, filter row, and density toggle between table and cards. The default table contains property, location, status, price, views, leads, expiry, and actions. Keep filters in URL query parameters.
+**Desktop layout:** compact title row with an inline WhatsApp-import affordance, one toolbar, and image-led cards or dense rows. Listings must start within the first desktop viewport; do not place a promotional WhatsApp hero above them. A view toggle is included only when both modes work. Keep filters in URL query parameters when URL-backed filtering is implemented.
 
 **Empty:** **Create your first listing** plus optional **Use a demo as a guide**. Demo content is not persisted unless the broker explicitly duplicates and edits it. **Fetch failure:** retain filters, show **Retry**, and do not say “No listings.”
 
@@ -404,7 +415,7 @@ Every action item states its derivation, for example **New WhatsApp enquiry** or
 
 Do not include state, PIN code, computed costs, coordinates, RERA verification, commute, or visit slots. The private-address field says **Not shown publicly**. Conditional fields do not erase values without warning when property type changes.
 
-The current backend has no draft property status. A client-side recovery copy may be stored in `sessionStorage` and must be labelled **Saved on this device**, cleared after successful creation, and never presented as cloud autosave. If local storage is unavailable, show a nonblocking warning.
+Manual listing creation has no confirmed server autosave contract. A client-side recovery copy may be stored in `sessionStorage` and must be labelled **Saved on this device**, cleared after successful creation, and never presented as cloud autosave. WhatsApp imports may use the implemented server-side `DRAFT` state and review route. If local storage is unavailable, show a nonblocking warning.
 
 AI copy opens as an optional side sheet/bottom sheet, uses the form's current facts, and requires the broker to accept or edit the result. On AI failure, manual entry remains available with **Try AI again**.
 
@@ -440,7 +451,7 @@ The “No update for…” label is based on `updated_at`; it is not a reminder.
 
 **Intent:** provide a trustworthy history of messages recorded by the connected integration, not promise a universal WhatsApp inbox.
 
-**Mobile layout:** session list, then conversation route/state with back navigation. Desktop uses list plus conversation pane. Each message shows direction, message type, delivery timestamp when recorded, and media placeholder/failure state. A prominent note identifies the connected WhatsApp number.
+**Mobile layout:** session list, then conversation state with back navigation. Desktop uses a full-height master-detail workspace: a narrow session list and readable conversation pane, with a compact context rail only for metadata actually returned by the session. Each message uses the shared message/bubble primitives and shows direction, message type, delivery timestamp when recorded, and media placeholder/failure state. A prominent note identifies the connected WhatsApp number.
 
 If outbound sending from the UI is not supported by the current endpoint, use **Open in WhatsApp** instead of a composer. Never render a fake enabled composer. Empty state explains that conversations appear after the number is connected and messages are received by PropertyOS.
 

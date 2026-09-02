@@ -2,13 +2,13 @@ export type ThemeMode = 'LIGHT' | 'DARK';
 
 const HEX_PATTERN = /^#[0-9a-f]{6}$/i;
 
-const THEME_SURFACES: Record<ThemeMode, string> = {
-  LIGHT: '#FFFDF8',
-  DARK: '#15201C',
+const THEME_SURFACES: Record<ThemeMode, string[]> = {
+  LIGHT: ['#F6F7F5', '#FFFFFF', '#F0F2EF'],
+  DARK: ['#0F1311', '#171C19', '#202622', '#252C28'],
 };
 
 const THEME_FALLBACKS: Record<ThemeMode, string> = {
-  LIGHT: '#174D3C',
+  LIGHT: '#17624A',
   DARK: '#63C59B',
 };
 
@@ -38,12 +38,12 @@ export function contrastRatio(first: string, second: string): number {
 }
 
 export function normalizeBrandColor(value?: string | null): string {
-  return value && HEX_PATTERN.test(value) ? value.toUpperCase() : '#174D3C';
+  return value && HEX_PATTERN.test(value) ? value.toUpperCase() : '#17624A';
 }
 
 export function resolveBrandPalette(value: string | null | undefined, theme: ThemeMode) {
   const brand = normalizeBrandColor(value);
-  const strong = contrastRatio(brand, THEME_SURFACES[theme]) >= 4.5
+  const strong = THEME_SURFACES[theme].every((surface) => contrastRatio(brand, surface) >= 4.5)
     ? brand
     : THEME_FALLBACKS[theme];
   const whiteContrast = contrastRatio(strong, '#FFFFFF');

@@ -1,271 +1,121 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  Building2, CheckCircle2, ChevronRight, ClipboardCopy, Clock3, Columns3,
-  Inbox, List, MessageCircle, Phone, Search, Trash2, UserRound, X,
-} from 'lucide-react';
+import { Toggle } from '@base-ui/react/toggle';
+import { ToggleGroup } from '@base-ui/react/toggle-group';
+import { ArrowRight, Building2, Check, ClipboardCopy, Columns3, Inbox, List, MessageCircle, Phone, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAppPreferences } from '@/components/AppPreferencesProvider';
+import { WorkspaceHeader } from '@/components/workspace/WorkspaceHeader';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
+import { workspaceText, type WorkspaceKey } from '@/i18n/workspace';
+import type { Locale } from '@/i18n';
 import { fetchApi } from '@/lib/api';
 
 type LeadStatus = 'NEW' | 'CONTACTED' | 'SITE_VISIT' | 'NEGOTIATION' | 'CLOSED' | 'LOST';
-type LeadFilter = 'ALL' | LeadStatus;
-
+const STAGES: LeadStatus[] = ['NEW', 'CONTACTED', 'SITE_VISIT', 'NEGOTIATION', 'CLOSED', 'LOST'];
 interface Lead {
-  id: string;
-  property: string | null;
-  property_title: string;
-  source: 'WHATSAPP_CLICK' | 'PHONE_CLICK' | 'GATED_MODAL' | string;
-  buyer_name: string;
-  phone: string;
-  email: string | null;
-  status: LeadStatus;
-  notes: string | null;
-  analytics_event: string | null;
-  tenant_name: string;
-  created_at: string;
-  updated_at: string;
+  id: string; property: string | null; property_title: string; source: string;
+  buyer_name: string; phone: string; email: string | null; status: LeadStatus;
+  notes: string | null; created_at: string; updated_at: string;
+}
+type W = (key: WorkspaceKey) => string;
+function sourceLabel(source: string, w: W) { return ['WHATSAPP_CLICK','PHONE_CLICK','GATED_MODAL'].includes(source) ? w(source as WorkspaceKey) : w('general'); }
+function capturedAt(value: string, locale: Locale) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString(`${locale}-IN`, { day: 'numeric', month: 'short' });
+}
+function followUp(lead: Lead) {
+  return `Hi ${lead.buyer_name?.split(' ')[0] || 'there'}, thanks for checking ${lead.property_title || 'the property you viewed'}. Would you prefer a quick video tour or a site visit slot?`;
+}
+function reply(lead: Lead) {
+  const phone = lead.phone.replace(/[^0-9]/g, '');
+  if (phone) window.open(`https://wa.me/${phone}?text=${encodeURIComponent(followUp(lead))}`, '_blank', 'noopener,noreferrer');
+}
+function StageBadge({ status, w }: { status: LeadStatus; w: W }) {
+  return <Badge variant="outline"><span className="workspace-state-dot" data-status={status} />{w(status)}</Badge>;
 }
 
-const STATUS_CHOICES: Array<{ value: LeadStatus; label: string; shortLabel: string }> = [
-  { value: 'NEW', label: 'New / uncontacted', shortLabel: 'New' },
-  { value: 'CONTACTED', label: 'Contacted', shortLabel: 'Contacted' },
-  { value: 'SITE_VISIT', label: 'Site visit planned', shortLabel: 'Site visit' },
-  { value: 'NEGOTIATION', label: 'In negotiation', shortLabel: 'Negotiation' },
-  { value: 'CLOSED', label: 'Closed / won', shortLabel: 'Won' },
-  { value: 'LOST', label: 'Lost / not interested', shortLabel: 'Lost' },
-];
-
-const SOURCE_LABELS: Record<string, string> = {
-  WHATSAPP_CLICK: 'WhatsApp enquiry',
-  PHONE_CLICK: 'Phone enquiry',
-  GATED_MODAL: 'Property form',
-};
-const FILTERS: LeadFilter[] = ['ALL', 'NEW', 'CONTACTED', 'SITE_VISIT', 'NEGOTIATION', 'CLOSED', 'LOST'];
-
-function statusLabel(status: LeadStatus) {
-  return STATUS_CHOICES.find((choice) => choice.value === status)?.shortLabel ?? status;
+function LeadEditor({ lead, w, pending, save, remove }: { lead: Lead; w: W; pending: boolean; save: (patch: Partial<Lead>) => void; remove: () => void }) {
+  const [name, setName] = useState(lead.buyer_name);
+  const [phone, setPhone] = useState(lead.phone);
+  const [email, setEmail] = useState(lead.email || '');
+  const [status, setStatus] = useState(lead.status);
+  const [notes, setNotes] = useState(lead.notes || '');
+  const copy = async () => { try { await navigator.clipboard.writeText(followUp(lead)); toast.success(w('copied')); } catch { toast.error(w('failed')); } };
+  return <div className="flex flex-col gap-6">
+    <DialogHeader><DialogTitle>{w('details')}</DialogTitle><DialogDescription>{sourceLabel(lead.source, w)}</DialogDescription></DialogHeader>
+    <div className="workspace-detail-hero flex flex-col items-start gap-4"><Avatar size="lg"><AvatarFallback>{lead.buyer_name?.[0] || '?'}</AvatarFallback></Avatar><div><h2 className="text-2xl font-semibold tracking-tight">{lead.buyer_name}</h2><p className="mt-1 text-sm text-muted-foreground">{lead.phone}</p></div><StageBadge status={lead.status} w={w} /></div>
+    <div className="flex gap-2"><Button className="flex-1" onClick={() => reply(lead)} disabled={!lead.phone}><MessageCircle data-icon="inline-start" />{w('reply')}</Button><a href={`tel:${lead.phone}`} className={buttonVariants({ variant: 'outline' })}><Phone data-icon="inline-start" />{w('call')}</a></div>
+    <div className="flex items-start gap-3"><Building2 size={19} className="mt-0.5 shrink-0 text-muted-foreground" /><div><p className="text-xs text-muted-foreground">{w('property')}</p><p className="mt-1 text-sm leading-6">{lead.property_title || w('general')}</p></div></div>
+    <Separator />
+    <form onSubmit={event => { event.preventDefault(); save({ buyer_name: name.trim(), phone: phone.trim(), email: email.trim() || null, status, notes: notes.trim() || null }); }} className="flex flex-col gap-6">
+      <FieldGroup>
+        <Field><FieldLabel htmlFor="lead-name">{w('name')}</FieldLabel><Input id="lead-name" required value={name} onChange={event => setName(event.target.value)} /></Field>
+        <Field><FieldLabel htmlFor="lead-phone">{w('phone')}</FieldLabel><Input id="lead-phone" required type="tel" value={phone} onChange={event => setPhone(event.target.value)} /></Field>
+        <Field><FieldLabel htmlFor="lead-email">{w('email')}</FieldLabel><Input id="lead-email" type="email" value={email} onChange={event => setEmail(event.target.value)} /></Field>
+        <Field><FieldLabel htmlFor="lead-stage">{w('status')}</FieldLabel><NativeSelect id="lead-stage" value={status} onChange={event => setStatus(event.target.value as LeadStatus)}>{STAGES.map(stage => <NativeSelectOption key={stage} value={stage}>{w(stage)}</NativeSelectOption>)}</NativeSelect></Field>
+        <Field><FieldLabel htmlFor="lead-notes">{w('notes')}</FieldLabel><Textarea id="lead-notes" rows={4} value={notes} onChange={event => setNotes(event.target.value)} placeholder={w('notesHint')} /></Field>
+      </FieldGroup>
+      <div className="sticky bottom-0 flex gap-2 border-t bg-card py-4"><Button type="submit" className="flex-1" disabled={pending}><Check data-icon="inline-start" />{w(pending ? 'saving' : 'save')}</Button><Button type="button" variant="outline" size="icon" onClick={() => void copy()} aria-label={w('copy')}><ClipboardCopy /></Button><Button type="button" variant="destructive" size="icon" disabled={pending} onClick={() => window.confirm(w('deleteConfirm')) && remove()} aria-label={w('delete')}><Trash2 /></Button></div>
+    </form>
+  </div>;
 }
 
-function statusClass(status: LeadStatus) {
-  if (status === 'CLOSED') return 'border-emerald-600/25 bg-emerald-600/10 text-emerald-700 dark:text-emerald-300';
-  if (status === 'LOST') return 'border-rose-600/25 bg-rose-600/10 text-rose-700 dark:text-rose-300';
-  if (status === 'NEW') return 'border-amber-600/25 bg-amber-500/10 text-amber-800 dark:text-amber-300';
-  if (status === 'SITE_VISIT') return 'border-sky-600/25 bg-sky-600/10 text-sky-700 dark:text-sky-300';
-  return 'border-[var(--ui-border)] bg-[var(--ui-surface-muted)] text-[var(--ui-text-muted)]';
-}
-
-function formatCapturedAt(value: string) {
-  return new Intl.DateTimeFormat('en-IN', {
-    day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
-  }).format(new Date(value));
-}
-
-export default function LeadsPage() {
-  const queryClient = useQueryClient();
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+function LeadsWorkspace() {
+  const { locale, t } = useAppPreferences();
+  const w: W = key => workspaceText(locale, key);
+  const params = useSearchParams();
+  const client = useQueryClient();
+  const [selectedId, setSelectedId] = useState<string | null | undefined>();
   const [viewMode, setViewMode] = useState<'LIST' | 'PIPELINE'>('LIST');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState<LeadFilter>('ALL');
-  const [editName, setEditName] = useState('');
-  const [editPhone, setEditPhone] = useState('');
-  const [editEmail, setEditEmail] = useState('');
-  const [editStatus, setEditStatus] = useState<LeadStatus>('NEW');
-  const [editNotes, setEditNotes] = useState('');
+  const [search, setSearch] = useState('');
+  const [stage, setStage] = useState('ALL');
+  const query = useQuery<Lead[]>({ queryKey: ['leads'], queryFn: () => fetchApi('/leads/') });
+  const leads = useMemo(() => query.data ?? [], [query.data]);
+  const selected = leads.find(lead => String(lead.id) === (selectedId === undefined ? params.get('lead') : selectedId));
+  const filtered = useMemo(() => leads.filter(lead => (!search.trim() || [lead.buyer_name, lead.phone, lead.property_title, lead.email].some(value => value?.toLowerCase().includes(search.trim().toLowerCase()))) && (viewMode === 'PIPELINE' || stage === 'ALL' || lead.status === stage)).sort((a,b) => Number(b.status === 'NEW') - Number(a.status === 'NEW') || new Date(b.created_at).getTime() - new Date(a.created_at).getTime()), [leads, search, stage, viewMode]);
+  const update = useMutation({ mutationFn: ({ id, patch }: { id: string; patch: Partial<Lead> }) => fetchApi<Lead>(`/leads/${id}/`, { method: 'PATCH', body: JSON.stringify(patch) }), onSuccess: () => { void client.invalidateQueries({ queryKey: ['leads'] }); toast.success(w('saved')); }, onError: (error: Error) => toast.error(error.message || w('failed')) });
+  const remove = useMutation({ mutationFn: (id: string) => fetchApi(`/leads/${id}/`, { method: 'DELETE' }), onSuccess: () => { void client.invalidateQueries({ queryKey: ['leads'] }); setSelectedId(null); toast.success(w('deleted')); }, onError: (error: Error) => toast.error(error.message || w('failed')) });
+  const count = (status: LeadStatus) => leads.filter(lead => lead.status === status).length;
 
-  const leadsQuery = useQuery<Lead[]>({ queryKey: ['leads'], queryFn: () => fetchApi('/leads/') });
-  const leads = useMemo(() => leadsQuery.data ?? [], [leadsQuery.data]);
-
-  const updateLeadMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: Partial<Lead> }) =>
-      fetchApi<Lead>(`/leads/${id}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
-    onSuccess: (updated) => {
-      void queryClient.invalidateQueries({ queryKey: ['leads'] });
-      setSelectedLead((current) => current?.id === updated.id ? updated : current);
-      toast.success('Lead updated');
-    },
-    onError: (error: Error) => toast.error(error.message || 'Could not update this lead'),
-  });
-
-  const deleteLeadMutation = useMutation({
-    mutationFn: (id: string) => fetchApi(`/leads/${id}/`, { method: 'DELETE' }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['leads'] });
-      setSelectedLead(null);
-      toast.success('Lead deleted');
-    },
-    onError: (error: Error) => toast.error(error.message || 'Could not delete this lead'),
-  });
-
-  const openLead = (lead: Lead) => {
-    setSelectedLead(lead);
-    setEditName(lead.buyer_name || '');
-    setEditPhone(lead.phone || '');
-    setEditEmail(lead.email || '');
-    setEditStatus(lead.status);
-    setEditNotes(lead.notes || '');
-  };
-
-  const filteredLeads = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    return leads.filter((lead) => {
-      const matchesStatus = activeFilter === 'ALL' || lead.status === activeFilter;
-      const matchesQuery = !query || [lead.buyer_name, lead.phone, lead.property_title, lead.email ?? '']
-        .some((value) => value.toLowerCase().includes(query));
-      return matchesStatus && matchesQuery;
-    });
-  }, [activeFilter, leads, searchQuery]);
-
-  const searchedLeads = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return leads;
-    return leads.filter((lead) => [lead.buyer_name, lead.phone, lead.property_title, lead.email ?? '']
-      .some((value) => value.toLowerCase().includes(query)));
-  }, [leads, searchQuery]);
-
-  const count = (filter: LeadFilter) => filter === 'ALL'
-    ? leads.length
-    : leads.filter((lead) => lead.status === filter).length;
-
-  const getLeadMessage = (lead: Lead) => {
-    const firstName = lead.buyer_name?.split(' ')[0] || 'there';
-    const listing = lead.property_title || 'the property you viewed';
-    return `Hi ${firstName}, thanks for checking ${listing}. Would you prefer a quick video tour or a site visit slot?`;
-  };
-
-  const openWhatsApp = (lead: Lead) => {
-    const phone = lead.phone.replace(/[^0-9]/g, '');
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(getLeadMessage(lead))}`, '_blank', 'noopener,noreferrer');
-  };
-
-  const copyFollowUp = async (lead: Lead) => {
-    try {
-      await navigator.clipboard.writeText(getLeadMessage(lead));
-      toast.success('Follow-up copied');
-    } catch {
-      toast.error('Could not copy the follow-up');
-    }
-  };
-
-  const saveLead = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!selectedLead) return;
-    updateLeadMutation.mutate({
-      id: selectedLead.id,
-      payload: {
-        buyer_name: editName.trim(), phone: editPhone.trim(),
-        email: editEmail.trim() || null, status: editStatus, notes: editNotes.trim() || null,
-      },
-    });
-  };
-
-  const dropLead = (event: React.DragEvent, status: LeadStatus) => {
-    event.preventDefault();
-    const leadId = event.dataTransfer.getData('leadId');
-    if (leadId) updateLeadMutation.mutate({ id: leadId, payload: { status } });
-  };
-
-  return (
-    <div className="space-y-6 os-fade-in">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-[var(--ui-brand-strong)]">Buyer follow-up</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[var(--ui-text)]">Leads</h1>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--ui-text-muted)]">
-            Respond to new enquiries first, then keep every next step visible.
-          </p>
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:min-w-64">
-          <div className="os-surface px-4 py-3"><span className="text-xs text-[var(--ui-text-muted)]">Needs reply</span><strong className="mt-1 block text-2xl text-[var(--ui-text)]">{count('NEW')}</strong></div>
-          <div className="os-surface px-4 py-3"><span className="text-xs text-[var(--ui-text-muted)]">Site visits</span><strong className="mt-1 block text-2xl text-[var(--ui-text)]">{count('SITE_VISIT')}</strong></div>
-        </div>
-      </header>
-
-      <section className="os-surface space-y-3 p-3 sm:p-4" aria-label="Lead controls">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-h-11 w-fit rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)] p-1">
-            <button type="button" onClick={() => setViewMode('LIST')} className={`flex min-h-9 items-center gap-2 rounded-lg px-3 text-sm font-semibold ${viewMode === 'LIST' ? 'bg-[var(--ui-surface-raised)] text-[var(--ui-text)] shadow-sm' : 'text-[var(--ui-text-muted)]'}`}><List size={17} /> List</button>
-            <button type="button" onClick={() => setViewMode('PIPELINE')} className={`flex min-h-9 items-center gap-2 rounded-lg px-3 text-sm font-semibold ${viewMode === 'PIPELINE' ? 'bg-[var(--ui-surface-raised)] text-[var(--ui-text)] shadow-sm' : 'text-[var(--ui-text-muted)]'}`}><Columns3 size={17} /> Pipeline</button>
-          </div>
-          <label className="relative block w-full lg:max-w-sm">
-            <span className="sr-only">Search leads</span>
-            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ui-text-muted)]" size={18} />
-            <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} className="os-input min-h-11 !pl-10" placeholder="Search buyer, phone or listing" />
-          </label>
-        </div>
-        {viewMode === 'LIST' && (
-          <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Lead status filters">
-            {FILTERS.map((filter) => (
-              <button type="button" key={filter} onClick={() => setActiveFilter(filter)} className={`flex min-h-11 shrink-0 items-center gap-2 rounded-xl border px-3 text-sm font-semibold ${activeFilter === filter ? 'border-[var(--ui-brand)] bg-[color-mix(in_srgb,var(--ui-brand)_10%,transparent)] text-[var(--ui-brand-strong)]' : 'border-[var(--ui-border)] text-[var(--ui-text-muted)]'}`}>
-                {filter === 'ALL' ? 'All' : statusLabel(filter)}
-                <span className="rounded-full bg-[var(--ui-surface-muted)] px-2 py-0.5 text-xs">{count(filter)}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {leadsQuery.isLoading ? (
-        <div className="space-y-3" aria-label="Loading leads">{[1, 2, 3].map((item) => <div key={item} className="h-32 animate-pulse rounded-2xl bg-[var(--ui-surface-muted)]" />)}</div>
-      ) : leadsQuery.isError ? (
-        <section className="os-surface flex flex-col items-start gap-3 p-6"><Inbox className="text-[var(--ui-text-muted)]" /><div><h2 className="font-bold text-[var(--ui-text)]">Could not load leads</h2><p className="mt-1 text-sm text-[var(--ui-text-muted)]">Check your connection and try again.</p></div><button type="button" className="os-btn-ghost" onClick={() => void leadsQuery.refetch()}>Try again</button></section>
-      ) : viewMode === 'PIPELINE' ? (
-        <section className="flex snap-x gap-3 overflow-x-auto pb-3" aria-label="Lead pipeline">
-          {STATUS_CHOICES.map((column) => {
-            const columnLeads = searchedLeads.filter((lead) => lead.status === column.value);
-            return (
-              <div key={column.value} onDragOver={(event) => event.preventDefault()} onDrop={(event) => dropLead(event, column.value)} className="min-h-96 w-[280px] shrink-0 snap-start rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)] p-3 lg:w-[300px]">
-                <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-bold text-[var(--ui-text)]">{column.label}</h2><span className="rounded-full bg-[var(--ui-surface-raised)] px-2 py-1 text-xs text-[var(--ui-text-muted)]">{columnLeads.length}</span></div>
-                <div className="space-y-2">
-                  {columnLeads.map((lead) => (
-                    <button type="button" draggable onDragStart={(event) => event.dataTransfer.setData('leadId', lead.id)} onClick={() => openLead(lead)} key={lead.id} className="w-full rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-raised)] p-3 text-left transition hover:border-[var(--ui-brand)]">
-                      <strong className="block truncate text-sm text-[var(--ui-text)]">{lead.buyer_name}</strong><span className="mt-1 block text-xs text-[var(--ui-text-muted)]">{lead.phone}</span><span className="mt-3 block truncate border-t border-[var(--ui-border)] pt-3 text-xs text-[var(--ui-text-muted)]">{lead.property_title || 'General enquiry'}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </section>
-      ) : filteredLeads.length === 0 ? (
-        <section className="os-surface flex flex-col items-center px-6 py-16 text-center"><Inbox size={36} className="text-[var(--ui-text-muted)]" /><h2 className="mt-4 font-bold text-[var(--ui-text)]">No leads here yet</h2><p className="mt-2 max-w-sm text-sm leading-6 text-[var(--ui-text-muted)]">{searchQuery || activeFilter !== 'ALL' ? 'Try a different search or status.' : 'Buyer WhatsApp and phone actions from your public property pages will appear here.'}</p></section>
-      ) : (
-        <section className="space-y-3" aria-label="Lead list">
-          {filteredLeads.map((lead) => (
-            <article key={lead.id} className="os-surface p-4 sm:p-5">
-              <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--ui-surface-muted)] text-[var(--ui-brand-strong)]"><UserRound size={20} /></div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-start justify-between gap-2"><div><h2 className="font-bold text-[var(--ui-text)]">{lead.buyer_name}</h2><p className="mt-0.5 text-sm text-[var(--ui-text-muted)]">{lead.phone}</p></div><span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${statusClass(lead.status)}`}>{statusLabel(lead.status)}</span></div>
-                  <div className="mt-3 grid gap-2 text-sm text-[var(--ui-text-muted)] sm:grid-cols-2"><p className="flex min-w-0 items-center gap-2"><Building2 size={16} className="shrink-0" /><span className="truncate">{lead.property_title || 'General enquiry'}</span></p><p className="flex items-center gap-2"><Clock3 size={16} />{formatCapturedAt(lead.created_at)}</p></div>
-                  <p className="mt-3 text-xs font-semibold text-[var(--ui-brand-strong)]">{SOURCE_LABELS[lead.source] || 'Buyer enquiry'}</p>
-                </div>
-              </div>
-              <div className="mt-4 grid grid-cols-[1fr_44px] gap-2 border-t border-[var(--ui-border)] pt-4 sm:flex sm:justify-end"><button type="button" onClick={() => openWhatsApp(lead)} className="os-btn-primary px-4"><MessageCircle size={18} /> Reply on WhatsApp</button><button type="button" onClick={() => openLead(lead)} className="os-btn-icon" aria-label={`Open ${lead.buyer_name} lead`}><ChevronRight size={19} /></button></div>
-            </article>
-          ))}
-        </section>
-      )}
-
-      {selectedLead && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-[var(--ui-overlay)]" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedLead(null); }}>
-          <aside className="h-full w-full overflow-y-auto border-l border-[var(--ui-border)] bg-[var(--ui-surface-raised)] shadow-2xl sm:max-w-md" aria-label="Lead details">
-            <header className="sticky top-0 z-10 flex items-start justify-between border-b border-[var(--ui-border)] bg-[var(--ui-surface-raised)] p-5"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--ui-brand-strong)]">Lead details</p><h2 className="mt-1 text-xl font-bold text-[var(--ui-text)]">{selectedLead.buyer_name}</h2></div><button type="button" onClick={() => setSelectedLead(null)} className="os-btn-icon" aria-label="Close lead details"><X size={19} /></button></header>
-            <div className="grid grid-cols-2 gap-2 border-b border-[var(--ui-border)] p-5"><button type="button" onClick={() => openWhatsApp(selectedLead)} className="os-btn-primary px-3"><MessageCircle size={18} /> WhatsApp</button><a href={`tel:${selectedLead.phone}`} className="os-btn-ghost px-3"><Phone size={18} /> Call</a><button type="button" onClick={() => void copyFollowUp(selectedLead)} className="os-btn-ghost col-span-2"><ClipboardCopy size={17} /> Copy follow-up message</button></div>
-            <form onSubmit={saveLead} className="space-y-5 p-5 pb-28">
-              <div className="rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)] p-4"><p className="text-xs font-semibold text-[var(--ui-text-muted)]">Interested in</p><p className="mt-1 font-semibold text-[var(--ui-text)]">{selectedLead.property_title || 'General enquiry'}</p><p className="mt-2 text-xs text-[var(--ui-text-muted)]">{SOURCE_LABELS[selectedLead.source] || 'Buyer enquiry'} · {formatCapturedAt(selectedLead.created_at)}</p></div>
-              <label className="block"><span className="os-input-label">Buyer name</span><input required value={editName} onChange={(event) => setEditName(event.target.value)} className="os-input min-h-11" /></label>
-              <label className="block"><span className="os-input-label">Phone number</span><input required type="tel" value={editPhone} onChange={(event) => setEditPhone(event.target.value)} className="os-input min-h-11" /></label>
-              <label className="block"><span className="os-input-label">Email (optional)</span><input type="email" value={editEmail} onChange={(event) => setEditEmail(event.target.value)} className="os-input min-h-11" placeholder="Not provided" /></label>
-              <label className="block"><span className="os-input-label">Next stage</span><select value={editStatus} onChange={(event) => setEditStatus(event.target.value as LeadStatus)} className="os-input min-h-11">{STATUS_CHOICES.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}</select></label>
-              <label className="block"><span className="os-input-label">Follow-up notes</span><textarea rows={5} value={editNotes} onChange={(event) => setEditNotes(event.target.value)} className="os-input resize-none" placeholder="Add discussion, budget or site-visit notes" /></label>
-              <button type="submit" disabled={updateLeadMutation.isPending} className="os-btn-primary w-full disabled:opacity-50"><CheckCircle2 size={18} /> {updateLeadMutation.isPending ? 'Saving…' : 'Save lead'}</button>
-              <button type="button" disabled={deleteLeadMutation.isPending} onClick={() => { if (window.confirm('Delete this lead permanently?')) deleteLeadMutation.mutate(selectedLead.id); }} className="os-btn-ghost w-full border-rose-600/25 text-rose-700 dark:text-rose-300"><Trash2 size={17} /> Delete lead</button>
-            </form>
-          </aside>
-        </div>
-      )}
+  return <div className="workspace-page" data-ui-reference="workspace-v4-leads">
+    <WorkspaceHeader eyebrow={w('leadEyebrow')} title={w('leads')} description={w('leadIntro')} />
+    <dl className="workspace-stat-strip">{[[w('allBuyers'), leads.length], [w('needsReply'), count('NEW')], [w('visits'), count('SITE_VISIT')], [w('won'), count('CLOSED')]].map(([label,value]) => <div key={String(label)}><dt>{label}</dt><dd>{query.data ? value : '—'}</dd></div>)}</dl>
+    <div className="workspace-filter-bar">
+      <label className="min-w-0 flex-1 basis-56"><span className="sr-only">{w('search')}</span><Input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder={w('search')} /></label>
+      {viewMode === 'LIST' && <label className="min-w-0"><span className="sr-only">{w('status')}</span><NativeSelect value={stage} onChange={event => setStage(event.target.value)}><NativeSelectOption value="ALL">{w('all')}</NativeSelectOption>{STAGES.map(value => <NativeSelectOption key={value} value={value}>{w(value)} ({count(value)})</NativeSelectOption>)}</NativeSelect></label>}
+      <ToggleGroup aria-label={w('view')} value={[viewMode]} onValueChange={value => { if (value[0]) setViewMode(value[0] as 'LIST' | 'PIPELINE'); }} className="flex rounded-xl bg-muted p-1">
+        <Toggle value="LIST" className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-xs text-muted-foreground outline-ring data-pressed:bg-card data-pressed:text-foreground data-pressed:shadow-sm"><List size={16} />{w('list')}</Toggle>
+        <Toggle value="PIPELINE" className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-xs text-muted-foreground outline-ring data-pressed:bg-card data-pressed:text-foreground data-pressed:shadow-sm"><Columns3 size={16} />{w('pipeline')}</Toggle>
+      </ToggleGroup>
     </div>
-  );
+    {query.isLoading ? <div className="flex flex-col gap-3">{[0,1,2].map(i => <Skeleton key={i} className="h-20" />)}</div> : query.isError ? <Alert variant="destructive"><RefreshCw /><AlertTitle>{w('error')}</AlertTitle><AlertDescription><Button variant="outline" onClick={() => void query.refetch()}>{w('retry')}</Button></AlertDescription></Alert> : filtered.length === 0 ? <Alert><Inbox /><AlertTitle>{w(leads.length ? 'noMatch' : 'noLeads')}</AlertTitle><AlertDescription>{w('noMatchHint')}</AlertDescription></Alert> : viewMode === 'PIPELINE' ? <section className="flex gap-4 overflow-x-auto pb-4" aria-label={w('pipeline')}>
+      {STAGES.map(status => <div key={status} className="w-64 shrink-0 rounded-2xl bg-muted p-3" onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); const id = event.dataTransfer.getData('leadId'); if (id && leads.some(lead => String(lead.id) === id)) update.mutate({ id, patch: { status } }); }}><div className="mb-4 flex items-center justify-between p-1"><h2 className="text-sm font-semibold">{w(status)}</h2><Badge variant="outline">{filtered.filter(lead => lead.status === status).length}</Badge></div><div className="flex flex-col gap-3">{filtered.filter(lead => lead.status === status).map(lead => <button key={lead.id} type="button" draggable onDragStart={event => event.dataTransfer.setData('leadId', String(lead.id))} onClick={() => setSelectedId(String(lead.id))} className="flex min-h-32 flex-col gap-3 rounded-xl border bg-card p-4 text-left transition-shadow hover:shadow-sm"><span className="text-sm font-semibold">{lead.buyer_name}</span><span className="text-xs text-muted-foreground">{lead.phone}</span><span className="text-xs leading-5 text-muted-foreground">{lead.property_title || w('general')}</span></button>)}</div></div>)}
+    </section> : <section className="workspace-panel" aria-label={w('leads')}>
+      <div className="workspace-lead-row workspace-lead-heading" aria-hidden="true"><span>{w('buyer')}</span><span>{w('property')}</span><span>{w('status')}</span><span>{w('received')}</span><span /></div>
+      {filtered.map(lead => <article key={lead.id} className="workspace-lead-row" data-selected={selected?.id === lead.id}>
+        <button type="button" onClick={() => setSelectedId(String(lead.id))} className="flex min-h-11 min-w-0 items-center gap-3 text-left" aria-label={`${w('open')}: ${lead.buyer_name}`}><Avatar size="lg"><AvatarFallback>{lead.buyer_name?.[0] || '?'}</AvatarFallback></Avatar><span className="min-w-0"><strong className="block truncate text-[13px] font-semibold">{lead.buyer_name}</strong><span className="mt-1 block text-xs text-muted-foreground">{lead.phone}</span></span></button>
+        <div className="workspace-lead-property min-w-0"><p className="truncate text-xs leading-5" title={lead.property_title}>{lead.property_title || w('general')}</p><p className="mt-1 text-[11px] text-muted-foreground">{sourceLabel(lead.source, w)}</p></div>
+        <div className="workspace-lead-status"><StageBadge status={lead.status} w={w} /></div>
+        <p className="workspace-lead-date text-xs text-muted-foreground">{capturedAt(lead.created_at, locale)}</p>
+        <Button variant="ghost" size="icon" className="workspace-lead-open" onClick={() => setSelectedId(String(lead.id))} aria-label={`${w('review')}: ${lead.buyer_name}`}><ArrowRight /></Button>
+      </article>)}
+    </section>}
+    <Dialog open={Boolean(selected)} onOpenChange={open => { if (!open) setSelectedId(null); }}><DialogContent closeLabel={t('common.close')} className="top-0 right-0 left-auto block h-dvh max-w-full translate-x-0 translate-y-0 overflow-y-auto rounded-none p-6 sm:max-w-lg">{selected && <LeadEditor key={selected.id} lead={selected} w={w} pending={update.isPending || remove.isPending} save={patch => update.mutate({ id: selected.id, patch })} remove={() => remove.mutate(selected.id)} />}</DialogContent></Dialog>
+  </div>;
 }
+
+export default function LeadsPage() { return <Suspense fallback={<Skeleton className="h-80" />}><LeadsWorkspace /></Suspense>; }

@@ -152,3 +152,35 @@ def test_analytics_logging(api_client, test_data):
         property=prop, event_type="WHATSAPP_CLICK"
     )
     assert click_events.count() == 1
+
+
+@pytest.mark.django_db
+def test_public_listing_excludes_original_whatsapp_import(api_client, test_data):
+    from apps.sharing.models import ShareLink
+
+    tenant, user = test_data
+    prop = Property.objects_unfiltered.create(
+        tenant=tenant,
+        created_by=user,
+        title="Reviewed buyer-facing title",
+        description="Reviewed buyer-facing description",
+        price=9800000,
+        city="Pune",
+        area="Baner",
+        status="AVAILABLE",
+        source="WHATSAPP",
+        location_address="PRIVATE EXACT ADDRESS",
+        intake_metadata={"raw_details": "PRIVATE OWNER PHONE AND ADDRESS", "reviewed": True},
+    )
+    link = ShareLink.objects_unfiltered.get(property=prop)
+    response = api_client.get(f"/api/sharing/public/{link.slug}/")
+    assert response.status_code == 200
+    assert response.data["property"]["title"] == prop.title
+    assert response.data["property"]["location_address"] is None
+    assert "intake_metadata" not in response.data["property"]
+    assert "PRIVATE OWNER" not in str(response.data)
+
+    api_client.force_authenticate(user=user)
+    private_response = api_client.get(f"/api/properties/{prop.id}/")
+    assert private_response.status_code == 200
+    assert private_response.data["intake_metadata"]["raw_details"] == "PRIVATE OWNER PHONE AND ADDRESS"

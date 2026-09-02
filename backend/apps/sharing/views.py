@@ -133,6 +133,9 @@ class PublicPropertyResolverView(generics.RetrieveAPIView):
         # Public pages disclose only the broker-provided locality. Exact address
         # and directions are shared by the broker after a buyer enquires.
         property_data["location_address"] = None
+        # Original imports can contain owner numbers, exact addresses and private
+        # broker notes. Only the reviewed listing content belongs on public pages.
+        property_data.pop("intake_metadata", None)
 
         # 5. Build broker info from the share link creator (user) + tenant fallback
         broker_name = tenant_obj.name

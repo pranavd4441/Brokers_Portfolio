@@ -1,357 +1,106 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  Building2,
-  ArrowRight,
-  Copy,
-  ExternalLink,
-  Eye,
-  ImageOff,
-  MapPin,
-  MessageCircle,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Search,
-  Trash2,
-  UsersRound,
-} from 'lucide-react';
+import { ArrowRight, Building2, Copy, ExternalLink, Eye, LockKeyhole, MapPin, MessageCircle, Pencil, RefreshCw, Trash2, UsersRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppPreferences } from '@/components/AppPreferencesProvider';
+import { PropertyPhoto } from '@/components/property/PropertyPhoto';
+import { WorkspaceHeader } from '@/components/workspace/WorkspaceHeader';
 import ShareModal from '@/components/ShareModal';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { buttonVariants } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { inventoryText, type InventoryMessageKey } from '@/i18n/inventory';
 import { fetchApi } from '@/lib/api';
 
-interface PropertyImage {
-  id: string;
-  url: string;
-  thumbnail_url: string;
-}
-
 interface Property {
-  id: string;
-  title: string;
-  price: number;
-  property_type: string;
-  status: string;
-  city: string;
-  area: string;
-  bhk: number | null;
-  square_feet: number | null;
-  images: PropertyImage[];
-  expires_at?: string | null;
-  views_count?: number;
-  leads_count?: number;
-  slug?: string;
-  source?: 'MANUAL' | 'WHATSAPP';
-  intake_metadata?: {
-    missing_fields?: string[];
-    suggested_fields?: string[];
-  };
+  id: string; title: string; price: number; property_type: string; status: string;
+  city: string; area: string; bhk: number | null; square_feet: number | null;
+  images: { id: string; url: string; thumbnail_url: string }[];
+  views_count?: number; leads_count?: number; source?: 'MANUAL' | 'WHATSAPP';
 }
+type CopyFn = (key: InventoryMessageKey) => string;
+const STATUSES = ['DRAFT', 'AVAILABLE', 'NEGOTIATION', 'SITE_VISIT', 'BOOKED', 'SOLD', 'EXPIRED'] as const;
+const TYPES = ['APARTMENT', 'VILLA', 'PLOT', 'COMMERCIAL'] as const;
+function formatPrice(value: number) { return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value); }
 
-interface ShareData {
-  url: string;
-  whatsappText: string;
-  propertyTitle: string;
-}
-
-const STATUS_OPTIONS = ['ALL', 'DRAFT', 'AVAILABLE', 'NEGOTIATION', 'SITE_VISIT', 'BOOKED', 'SOLD', 'EXPIRED'];
-const TYPE_OPTIONS = ['ALL', 'APARTMENT', 'VILLA', 'PLOT', 'COMMERCIAL'];
-
-const STATUS_LABELS: Record<string, string> = {
-  DRAFT: 'Draft',
-  AVAILABLE: 'Available',
-  NEGOTIATION: 'In negotiation',
-  SITE_VISIT: 'Site visit',
-  BOOKED: 'Booked',
-  SOLD: 'Sold',
-  EXPIRED: 'Expired',
-};
-
-function formatPrice(value: number): string {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
-function formatFacts(property: Property): string {
-  const facts = [];
-  if (property.bhk) facts.push(`${property.bhk} BHK`);
-  facts.push(property.property_type.replace('_', ' ').toLowerCase());
-  if (property.square_feet) facts.push(`${Number(property.square_feet).toLocaleString('en-IN')} sq ft`);
-  return facts.join(' · ');
+function PropertyCard({ property: p, sharing, pending, onShare, onDuplicate, onDelete, c }: {
+  property: Property; sharing: boolean; pending: boolean; onShare: () => void; onDuplicate: () => void; onDelete: () => void; c: CopyFn;
+}) {
+  const cover = p.images?.[0]?.thumbnail_url || p.images?.[0]?.url;
+  const draft = p.status === 'DRAFT';
+  const href = `/dashboard/properties/${p.id}${draft ? '/review' : ''}`;
+  const shareable = ['AVAILABLE', 'NEGOTIATION', 'SITE_VISIT', 'BOOKED'].includes(p.status);
+  return <Card variant="property">
+    <Link href={href} className="relative block overflow-hidden rounded-2xl focus-visible:outline-2 focus-visible:outline-ring" aria-label={`${c('open')}: ${p.title}`}>
+      <PropertyPhoto src={cover} alt={p.title} fallback={c(cover ? 'imageFailed' : 'noPhoto')} compact />
+    </Link>
+    <CardHeader>
+      <div className="mb-2 flex items-center justify-between gap-2"><Badge variant="outline"><span className="workspace-state-dot" data-status={p.status} />{c(STATUSES.find(s => s === p.status) ?? 'DRAFT')}</Badge>{p.source === 'WHATSAPP' && <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><MessageCircle className="size-3.5" />WhatsApp</span>}</div>
+      <CardTitle><h2><Link href={href} className="line-clamp-2 leading-6" title={p.title}>{p.title}</Link></h2></CardTitle>
+      <p className="mt-1 flex items-center gap-1.5 text-xs leading-5 text-muted-foreground"><MapPin className="size-3.5 shrink-0" />{[p.area, p.city].filter(Boolean).join(', ') || c('locationMissing')}</p>
+    </CardHeader>
+    <CardContent className="flex flex-1 flex-col gap-2">
+      <p className="text-xl font-semibold tracking-tight">{formatPrice(Number(p.price))}</p>
+      <p className="text-xs leading-5 text-muted-foreground">{[p.bhk ? `${p.bhk} ${c('bhkUnit')}` : '', c(TYPES.find(s => s === p.property_type) ?? 'APARTMENT'), p.square_feet ? `${Number(p.square_feet).toLocaleString('en-IN')} ${c('sqft')}` : ''].filter(Boolean).join(' · ')}</p>
+      <div className="mt-1 flex gap-4 text-xs text-muted-foreground"><span className="flex items-center gap-1.5"><Eye className="size-3.5" />{p.views_count ?? 0} {c('views')}</span><span className="flex items-center gap-1.5"><UsersRound className="size-3.5" />{p.leads_count ?? 0} {c('leads')}</span></div>
+    </CardContent>
+    <CardFooter className="flex-wrap gap-1">
+      {draft ? <Link href={href} className={buttonVariants({ variant: 'outline', className: 'flex-1' })}><Pencil data-icon="inline-start" />{c('review')}</Link> : <Button variant="outline" className="flex-1" disabled={sharing || !shareable} onClick={onShare}><MessageCircle data-icon="inline-start" />{sharing ? c('preparing') : c('share')}</Button>}
+      <Link href={`/dashboard/properties/${p.id}`} className={buttonVariants({ variant: 'ghost', size: 'icon' })} aria-label={`${c('open')}: ${p.title}`}><ExternalLink /></Link>
+      <Button variant="ghost" size="icon" disabled={pending} onClick={onDuplicate} aria-label={`${c('duplicate')}: ${p.title}`}><Copy /></Button>
+      <Button variant="ghost" size="icon" disabled={pending} onClick={onDelete} aria-label={`${c('delete')}: ${p.title}`}><Trash2 /></Button>
+    </CardFooter>
+  </Card>;
 }
 
 export default function PropertiesPage() {
-  const queryClient = useQueryClient();
-  const { t } = useAppPreferences();
+  const client = useQueryClient();
+  const { locale } = useAppPreferences();
+  const c: CopyFn = key => inventoryText(locale, key);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('ALL');
   const [propertyType, setPropertyType] = useState('ALL');
-  const [shareData, setShareData] = useState<ShareData | null>(null);
+  const [shareData, setShareData] = useState<{ url: string; whatsappText: string; propertyTitle: string } | null>(null);
   const [sharingId, setSharingId] = useState<string | null>(null);
-
-  const propertiesQuery = useQuery<Property[]>({
-    queryKey: ['properties'],
-    queryFn: () => fetchApi('/properties/'),
-  });
-
-  const duplicateMutation = useMutation({
-    mutationFn: (id: string) => fetchApi(`/properties/${id}/duplicate/`, { method: 'POST' }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['properties'] });
-      toast.success('Listing duplicated');
-    },
-    onError: (error: Error) => toast.error(error.message || 'Could not duplicate the listing'),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => fetchApi(`/properties/${id}/`, { method: 'DELETE' }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['properties'] });
-      toast.success('Listing deleted');
-    },
-    onError: (error: Error) => toast.error(error.message || 'Could not delete the listing'),
-  });
-
-  const filteredProperties = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return (propertiesQuery.data ?? []).filter((property) => {
-      const matchesQuery = !query || [property.title, property.area, property.city]
-        .some((value) => value.toLowerCase().includes(query));
-      const matchesStatus = status === 'ALL' || property.status === status;
-      const matchesType = propertyType === 'ALL' || property.property_type === propertyType;
-      return matchesQuery && matchesStatus && matchesType;
-    });
-  }, [propertiesQuery.data, propertyType, search, status]);
-
-  const whatsappDraftCount = (propertiesQuery.data ?? []).filter(
-    (property) => property.source === 'WHATSAPP' && property.status === 'DRAFT',
-  ).length;
-
-  const shareProperty = async (property: Property) => {
+  const query = useQuery<Property[]>({ queryKey: ['properties'], queryFn: () => fetchApi('/properties/') });
+  const connection = useQuery<{ provider: string; configured: boolean }>({ queryKey: ['whatsapp-connection'], queryFn: () => fetchApi('/whatsapp/connection/'), retry: 1 });
+  const duplicate = useMutation({ mutationFn: (id: string) => fetchApi(`/properties/${id}/duplicate/`, { method: 'POST' }), onSuccess: () => { void client.invalidateQueries({ queryKey: ['properties'] }); toast.success(c('duplicated')); }, onError: (error: Error) => toast.error(error.message || c('failed')) });
+  const remove = useMutation({ mutationFn: (id: string) => fetchApi(`/properties/${id}/`, { method: 'DELETE' }), onSuccess: () => { void client.invalidateQueries({ queryKey: ['properties'] }); toast.success(c('deleted')); }, onError: (error: Error) => toast.error(error.message || c('failed')) });
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return (query.data ?? []).filter(p => (!term || [p.title, p.area, p.city].some(value => value?.toLowerCase().includes(term))) && (status === 'ALL' || p.status === status) && (propertyType === 'ALL' || p.property_type === propertyType));
+  }, [query.data, search, status, propertyType]);
+  const drafts = (query.data ?? []).filter(p => p.source === 'WHATSAPP' && p.status === 'DRAFT');
+  const hasFilters = Boolean(search || status !== 'ALL' || propertyType !== 'ALL');
+  const clear = () => { setSearch(''); setStatus('ALL'); setPropertyType('ALL'); };
+  const share = async (property: Property) => {
     setSharingId(property.id);
-    try {
-      const response = await fetchApi<{ full_share_url: string; whatsapp_share_text: string }>('/sharing/links/', {
-        method: 'POST',
-        body: JSON.stringify({ property: property.id }),
-      });
-      setShareData({
-        url: response.full_share_url,
-        whatsappText: response.whatsapp_share_text,
-        propertyTitle: property.title,
-      });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not prepare the share link');
-    } finally {
-      setSharingId(null);
-    }
+    try { const result = await fetchApi<{ full_share_url: string; whatsapp_share_text: string }>('/sharing/links/', { method: 'POST', body: JSON.stringify({ property: property.id }) }); setShareData({ url: result.full_share_url, whatsappText: result.whatsapp_share_text, propertyTitle: property.title }); }
+    catch (error) { toast.error(error instanceof Error ? error.message : c('failed')); }
+    finally { setSharingId(null); }
   };
-
-  return (
-    <div className="space-y-6 os-fade-in">
-      {shareData && <ShareModal {...shareData} onClose={() => setShareData(null)} />}
-
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-[var(--ui-brand-strong)]">Broker inventory</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[var(--ui-text)]">Listings</h1>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--ui-text-muted)]">
-            Manage the property pages you publish and share with buyers.
-          </p>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Link href="/dashboard/properties/imports" className={buttonVariants({ variant: 'outline' })}>
-            <MessageCircle data-icon="inline-start" />
-            WhatsApp imports
-            {whatsappDraftCount > 0 && <Badge variant="secondary">{whatsappDraftCount}</Badge>}
-          </Link>
-          <Link href="/dashboard/properties/new" className={buttonVariants()}>
-            <Plus data-icon="inline-start" />
-            {t('listing.new')}
-          </Link>
-        </div>
-      </header>
-
-      <Card className="whatsapp-intake-hero">
-        <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground">
-              <MessageCircle className="size-5" />
-            </span>
-            <div>
-              <p className="font-semibold text-foreground">Create inventory from WhatsApp</p>
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Forward photos, copied details or a voice note. PropertyOS creates a private draft for review.
-              </p>
-            </div>
-          </div>
-          <Link href="/dashboard/properties/imports" className={buttonVariants({ variant: 'secondary' })}>
-            Open import queue
-            <ArrowRight data-icon="inline-end" />
-          </Link>
-        </CardContent>
-      </Card>
-
-      <section className="os-surface p-3 sm:p-4" aria-label="Listing filters">
-        <div className="grid gap-3 md:grid-cols-[minmax(240px,1fr)_190px_190px]">
-          <label className="relative block">
-            <span className="sr-only">Search listings</span>
-            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ui-text-muted)]" size={18} />
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              className="os-input min-h-11 pl-10"
-              placeholder="Search by property or locality"
-            />
-          </label>
-          <label>
-            <span className="sr-only">Filter by status</span>
-            <select value={status} onChange={(event) => setStatus(event.target.value)} className="os-input min-h-11">
-              {STATUS_OPTIONS.map((value) => <option key={value} value={value}>{value === 'ALL' ? 'All statuses' : STATUS_LABELS[value]}</option>)}
-            </select>
-          </label>
-          <label>
-            <span className="sr-only">Filter by property type</span>
-            <select value={propertyType} onChange={(event) => setPropertyType(event.target.value)} className="os-input min-h-11">
-              {TYPE_OPTIONS.map((value) => <option key={value} value={value}>{value === 'ALL' ? 'All property types' : value.charAt(0) + value.slice(1).toLowerCase()}</option>)}
-            </select>
-          </label>
-        </div>
-      </section>
-
-      {propertiesQuery.isLoading && (
-        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3" aria-label="Loading listings">
-          {[0, 1, 2].map((value) => <div key={value} className="os-surface h-[390px] os-skeleton" />)}
-        </div>
-      )}
-
-      {propertiesQuery.isError && (
-        <section className="os-surface flex flex-col items-center px-5 py-14 text-center">
-          <RefreshCw size={30} className="text-[var(--ui-danger)]" />
-          <h2 className="mt-4 text-lg font-bold text-[var(--ui-text)]">Listings could not be loaded</h2>
-          <p className="mt-2 max-w-md text-sm leading-6 text-[var(--ui-text-muted)]">
-            {propertiesQuery.error instanceof Error ? propertiesQuery.error.message : t('error.fetchFailed')}
-          </p>
-          <button type="button" onClick={() => void propertiesQuery.refetch()} className="os-btn-primary mt-5">
-            <RefreshCw size={17} />
-            {t('common.retry')}
-          </button>
-        </section>
-      )}
-
-      {!propertiesQuery.isLoading && !propertiesQuery.isError && filteredProperties.length === 0 && (
-        <section className="os-surface flex flex-col items-center px-5 py-16 text-center">
-          <span className="grid h-16 w-16 place-items-center rounded-3xl bg-[var(--ui-surface-muted)] text-[var(--ui-brand-strong)]">
-            <Building2 size={30} />
-          </span>
-          <h2 className="mt-5 text-xl font-bold text-[var(--ui-text)]">
-            {(propertiesQuery.data?.length ?? 0) === 0 ? 'Create your first listing' : 'No listings match these filters'}
-          </h2>
-          <p className="mt-2 max-w-md text-sm leading-6 text-[var(--ui-text-muted)]">
-            {(propertiesQuery.data?.length ?? 0) === 0
-              ? 'Add one real property and turn it into a professional page you can share.'
-              : 'Change or clear the filters to see more of your inventory.'}
-          </p>
-          {(propertiesQuery.data?.length ?? 0) === 0 && (
-            <Link href="/dashboard/properties/new" className="os-btn-primary mt-6">
-              <Plus size={18} />
-              {t('listing.new')}
-            </Link>
-          )}
-        </section>
-      )}
-
-      {!propertiesQuery.isLoading && !propertiesQuery.isError && filteredProperties.length > 0 && (
-        <>
-          <p className="text-sm text-[var(--ui-text-muted)]">{filteredProperties.length} {filteredProperties.length === 1 ? 'listing' : 'listings'}</p>
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-            {filteredProperties.map((property) => {
-              const cover = property.images?.[0]?.thumbnail_url || property.images?.[0]?.url;
-              return (
-                <article key={property.id} className="os-surface group overflow-hidden">
-                  <div className="relative aspect-[16/10] overflow-hidden bg-[var(--ui-surface-muted)]">
-                    {cover ? (
-                      <Image src={cover} alt="" fill unoptimized sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.025]" />
-                    ) : (
-                      <div className="grid h-full place-items-center text-[var(--ui-text-muted)]">
-                        <div className="text-center">
-                          <ImageOff size={28} className="mx-auto" />
-                          <p className="mt-2 text-xs font-medium">Needs photos</p>
-                        </div>
-                      </div>
-                    )}
-                    <span className="absolute left-3 top-3 rounded-full border border-white/60 bg-white/90 px-2.5 py-1 text-xs font-bold text-[#17211d] shadow-sm">
-                      {STATUS_LABELS[property.status] ?? property.status}
-                    </span>
-                    {property.source === 'WHATSAPP' && (
-                      <span className="absolute right-3 top-3 rounded-full border border-white/60 bg-white/90 px-2.5 py-1 text-xs font-bold text-[#17211d] shadow-sm">
-                        WhatsApp import
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <h2 className="line-clamp-2 text-lg font-bold leading-6 text-[var(--ui-text)]">{property.title}</h2>
-                        <p className="mt-1 flex items-center gap-1 text-sm text-[var(--ui-text-muted)]">
-                          <MapPin size={14} />
-                          <span className="truncate">{property.area}, {property.city}</span>
-                        </p>
-                      </div>
-                      <p className="shrink-0 text-base font-bold text-[var(--ui-text)]">{formatPrice(Number(property.price))}</p>
-                    </div>
-                    <p className="mt-3 text-sm capitalize text-[var(--ui-text-muted)]">{formatFacts(property)}</p>
-                    <div className="mt-4 flex items-center gap-4 border-t border-[var(--ui-border)] pt-3 text-xs text-[var(--ui-text-muted)]">
-                      <span className="flex items-center gap-1.5"><Eye size={14} />{property.views_count ?? 0} views</span>
-                      <span className="flex items-center gap-1.5"><UsersRound size={14} />{property.leads_count ?? 0} leads</span>
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-2 gap-2">
-                      {property.status === 'DRAFT' ? (
-                        <Link href={`/dashboard/properties/${property.id}/review`} className="os-btn-primary px-3">
-                          <Pencil size={17} />
-                          Review
-                        </Link>
-                      ) : (
-                        <button type="button" onClick={() => void shareProperty(property)} disabled={sharingId === property.id} className="os-btn-primary px-3">
-                          <MessageCircle size={17} />
-                          {sharingId === property.id ? 'Preparing…' : 'Share'}
-                        </button>
-                      )}
-                      <Link href={`/dashboard/properties/${property.id}`} className="os-btn-ghost px-3">
-                        <ExternalLink size={17} />
-                        Open
-                      </Link>
-                    </div>
-                    <div className="mt-2 grid grid-cols-3 gap-2">
-                      <Link href={`/dashboard/properties/${property.id}/edit`} className="flex min-h-11 items-center justify-center rounded-xl text-[var(--ui-text-muted)] hover:bg-[var(--ui-surface-muted)] hover:text-[var(--ui-text)]" aria-label={`Edit ${property.title}`}>
-                        <Pencil size={17} />
-                      </Link>
-                      <button type="button" onClick={() => duplicateMutation.mutate(property.id)} className="flex min-h-11 items-center justify-center rounded-xl text-[var(--ui-text-muted)] hover:bg-[var(--ui-surface-muted)] hover:text-[var(--ui-text)]" aria-label={`Duplicate ${property.title}`}>
-                        <Copy size={17} />
-                      </button>
-                      <button type="button" onClick={() => window.confirm(`Delete “${property.title}”? This cannot be undone.`) && deleteMutation.mutate(property.id)} className="flex min-h-11 items-center justify-center rounded-xl text-[var(--ui-danger)] hover:bg-[color-mix(in_srgb,var(--ui-danger)_8%,transparent)]" aria-label={`Delete ${property.title}`}>
-                        <Trash2 size={17} />
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </>
-      )}
-    </div>
-  );
+  return <div className="workspace-page" data-ui-reference="workspace-v4-inventory">
+    {shareData && <ShareModal {...shareData} onClose={() => setShareData(null)} />}
+    <WorkspaceHeader eyebrow={c('inventoryEyebrow')} title={c('inventoryTitle')} description={c('inventoryIntro')} action={<Link href="/dashboard/properties/imports" className={buttonVariants({ variant: 'outline' })}><MessageCircle data-icon="inline-start" />{c('imports')}{drafts.length > 0 && <Badge variant="secondary">{drafts.length}</Badge>}<ArrowRight data-icon="inline-end" /></Link>} />
+    <section className="flex flex-col gap-5" aria-label={c('allListings')}>
+      <div className="workspace-filter-bar">
+        <label className="min-w-0 flex-1 basis-56"><span className="sr-only">{c('search')}</span><Input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder={c('searchPlaceholder')} /></label>
+        <label className="min-w-0 flex-1 basis-36 sm:flex-none"><span className="sr-only">{c('statusFilter')}</span><NativeSelect value={status} onChange={event => setStatus(event.target.value)}><NativeSelectOption value="ALL">{c('allStatuses')}</NativeSelectOption>{STATUSES.map(value => <NativeSelectOption key={value} value={value}>{c(value)}</NativeSelectOption>)}</NativeSelect></label>
+        <label className="min-w-0 flex-1 basis-36 sm:flex-none"><span className="sr-only">{c('typeFilter')}</span><NativeSelect value={propertyType} onChange={event => setPropertyType(event.target.value)}><NativeSelectOption value="ALL">{c('allTypes')}</NativeSelectOption>{TYPES.map(value => <NativeSelectOption key={value} value={value}>{c(value)}</NativeSelectOption>)}</NativeSelect></label>
+      </div>
+      {drafts.length > 0 && !query.isError && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted px-4 py-3" aria-label={c('draftsWaiting')}><div className="flex min-w-0 items-center gap-3"><LockKeyhole className="size-4 shrink-0 text-muted-foreground" /><p className="text-xs leading-5"><strong className="font-semibold">{drafts.length} · {c('draftsWaiting')}</strong><span className="ml-2 hidden text-muted-foreground lg:inline">{c('draftsHint')}</span></p></div><Link href={`/dashboard/properties/${drafts[0].id}/review`} className={buttonVariants({ variant: 'ghost', size: 'sm' })}>{c('review')}<ArrowRight data-icon="inline-end" /></Link></div>}
+      <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs text-muted-foreground" role="status">{c('results')}: {query.isLoading ? '—' : filtered.length}</p>{hasFilters ? <Button variant="ghost" size="sm" onClick={clear}>{c('clearFilters')}</Button> : <p className="text-[11px] text-muted-foreground">{connection.isPending ? '…' : connection.isError || typeof connection.data?.configured !== 'boolean' ? c('connectionUnknown') : connection.data.configured && connection.data.provider !== 'MOCK' ? c('configured') : c('notConfigured')}</p>}</div>
+      {query.isLoading && <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3" aria-label={c('loading')}>{[0,1,2].map(i => <Skeleton key={i} className="h-80" />)}</div>}
+      {query.isError && <Alert variant="destructive"><RefreshCw /><AlertTitle>{c('loadFailed')}</AlertTitle><AlertDescription>{query.error.message}<Button variant="outline" onClick={() => void query.refetch()} className="mt-3 self-start">{c('retry')}</Button></AlertDescription></Alert>}
+      {!query.isLoading && !query.isError && filtered.length === 0 && <Alert><Building2 /><AlertTitle>{c(query.data?.length ? 'noMatch' : 'empty')}</AlertTitle><AlertDescription>{c(query.data?.length ? 'noMatchHint' : 'emptyHint')}{query.data?.length ? <Button variant="outline" onClick={clear} className="mt-3 self-start">{c('clearFilters')}</Button> : <Link href="/dashboard/properties/imports" className={buttonVariants({ variant: 'outline' })}>{c('imports')}</Link>}</AlertDescription></Alert>}
+      {!query.isLoading && !query.isError && filtered.length > 0 && <div className="grid items-start gap-x-6 gap-y-10 sm:grid-cols-2 xl:grid-cols-3">{filtered.map(p => <PropertyCard key={p.id} property={p} c={c} sharing={sharingId === p.id} pending={duplicate.isPending || remove.isPending} onShare={() => void share(p)} onDuplicate={() => duplicate.mutate(p.id)} onDelete={() => window.confirm(`${p.title}\n\n${c('deleteConfirm')}`) && remove.mutate(p.id)} />)}</div>}
+    </section>
+  </div>;
 }
