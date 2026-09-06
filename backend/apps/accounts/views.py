@@ -118,7 +118,9 @@ class TenantLogoUploadView(generics.GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         if request.user.role not in ["OWNER", "ADMIN"]:
-            return Response({"detail": "Only owners and admins can update the logo."}, status=403)
+            return Response(
+                {"detail": "Only owners and admins can update the logo."}, status=403
+            )
         uploaded = request.FILES.get("logo")
         if not uploaded:
             return Response({"detail": "Choose a logo image to upload."}, status=400)
@@ -132,7 +134,9 @@ class TenantLogoUploadView(generics.GenericAPIView):
         from django.core.files.storage import default_storage
 
         suffix = Path(uploaded.name).suffix.lower() or ".png"
-        path = default_storage.save(f"tenant-logos/{request.user.tenant_id}{suffix}", uploaded)
+        path = default_storage.save(
+            f"tenant-logos/{request.user.tenant_id}{suffix}", uploaded
+        )
         try:
             logo_url = request.build_absolute_uri(default_storage.url(path))
         except Exception:
@@ -155,24 +159,60 @@ class OnboardingStatusView(generics.GenericAPIView):
         listing_count = properties.count()
         share_count = tenant.share_actions_count
         analytics_count = AnalyticsEvent.objects.filter(property__tenant=tenant).count()
-        branding_complete = bool(tenant.name and tenant.logo_url and tenant.whatsapp_default_number)
+        branding_complete = bool(
+            tenant.name and tenant.logo_url and tenant.whatsapp_default_number
+        )
         steps = [
-            {"id": "profile", "label": "Complete broker profile", "complete": bool(request.user.name and request.user.phone), "href": "/dashboard/onboarding"},
-            {"id": "branding", "label": "Add logo and WhatsApp number", "complete": branding_complete, "href": "/dashboard/onboarding"},
-            {"id": "listing", "label": "Create your first listing", "complete": listing_count > 0, "href": "/dashboard/properties/new"},
-            {"id": "publish", "label": "Publish three property pages", "complete": listing_count >= 3, "href": "/dashboard/properties"},
-            {"id": "share", "label": "Share with a real prospect", "complete": share_count >= 1, "href": "/dashboard/properties"},
-            {"id": "results", "label": "Review buyer engagement", "complete": analytics_count >= 1, "href": "/dashboard"},
+            {
+                "id": "profile",
+                "label": "Complete broker profile",
+                "complete": bool(request.user.name and request.user.phone),
+                "href": "/dashboard/onboarding",
+            },
+            {
+                "id": "branding",
+                "label": "Add logo and WhatsApp number",
+                "complete": branding_complete,
+                "href": "/dashboard/onboarding",
+            },
+            {
+                "id": "listing",
+                "label": "Create your first listing",
+                "complete": listing_count > 0,
+                "href": "/dashboard/properties/new",
+            },
+            {
+                "id": "publish",
+                "label": "Publish three property pages",
+                "complete": listing_count >= 3,
+                "href": "/dashboard/properties",
+            },
+            {
+                "id": "share",
+                "label": "Share with a real prospect",
+                "complete": share_count >= 1,
+                "href": "/dashboard/properties",
+            },
+            {
+                "id": "results",
+                "label": "Review buyer engagement",
+                "complete": analytics_count >= 1,
+                "href": "/dashboard",
+            },
         ]
-        return Response({
-            "steps": steps,
-            "completed": sum(1 for item in steps if item["complete"]),
-            "total": len(steps),
-            "activated": branding_complete and listing_count >= 3 and share_count >= 1,
-            "listing_count": listing_count,
-            "share_count": share_count,
-            "analytics_count": analytics_count,
-        })
+        return Response(
+            {
+                "steps": steps,
+                "completed": sum(1 for item in steps if item["complete"]),
+                "total": len(steps),
+                "activated": branding_complete
+                and listing_count >= 3
+                and share_count >= 1,
+                "listing_count": listing_count,
+                "share_count": share_count,
+                "analytics_count": analytics_count,
+            }
+        )
 
 
 class TeamListView(generics.ListAPIView):

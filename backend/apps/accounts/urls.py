@@ -6,11 +6,11 @@ from .views import (
     CustomTokenRefreshView,
     MeView,
     MFAVerifyView,
+    OnboardingStatusView,
     RegistrationView,
     TeamListView,
     TenantBrandingView,
     TenantLogoUploadView,
-    OnboardingStatusView,
     UserSessionViewSet,
 )
 

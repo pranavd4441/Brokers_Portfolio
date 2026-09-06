@@ -22,7 +22,9 @@ class Tenant(models.Model):
     brand_color = models.CharField(max_length=7, default="#0F172A")  # Hex code
     whatsapp_default_number = models.CharField(max_length=20, blank=True, null=True)
     subscription_plan = models.CharField(max_length=50, default="FREE")
-    plan_status = models.CharField(max_length=20, choices=PLAN_STATUS_CHOICES, default="PILOT")
+    plan_status = models.CharField(
+        max_length=20, choices=PLAN_STATUS_CHOICES, default="PILOT"
+    )
     pilot_started_at = models.DateTimeField(blank=True, null=True)
     pilot_ends_at = models.DateTimeField(blank=True, null=True)
     founding_price_expires_at = models.DateTimeField(blank=True, null=True)
@@ -30,7 +32,9 @@ class Tenant(models.Model):
     acquisition_city = models.CharField(max_length=100, default="Pune", blank=True)
     referral_code = models.CharField(max_length=24, unique=True, blank=True, null=True)
     referred_by_code = models.CharField(max_length=24, blank=True, null=True)
-    preferred_locale = models.CharField(max_length=2, choices=LOCALE_CHOICES, default="en")
+    preferred_locale = models.CharField(
+        max_length=2, choices=LOCALE_CHOICES, default="en"
+    )
     marketing_consent = models.BooleanField(default=False)
     dpdp_consent_at = models.DateTimeField(blank=True, null=True)
     share_actions_count = models.PositiveIntegerField(default=0)

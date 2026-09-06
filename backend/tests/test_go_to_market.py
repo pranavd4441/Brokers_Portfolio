@@ -41,8 +41,19 @@ def test_registration_creates_attributed_fourteen_day_pilot():
 
 @pytest.mark.django_db
 def test_onboarding_reports_real_share_action_not_automatic_link():
-    tenant = Tenant.objects.create(name="Pilot Realty", logo_url="https://example.com/logo.png", whatsapp_default_number="+919999999999")
-    user = User.objects.create_user(email="pilot@example.com", password="StrongPass!42", name="Pilot Broker", phone="+919999999999", tenant=tenant, role="OWNER")
+    tenant = Tenant.objects.create(
+        name="Pilot Realty",
+        logo_url="https://example.com/logo.png",
+        whatsapp_default_number="+919999999999",
+    )
+    user = User.objects.create_user(
+        email="pilot@example.com",
+        password="StrongPass!42",
+        name="Pilot Broker",
+        phone="+919999999999",
+        tenant=tenant,
+        role="OWNER",
+    )
     client = APIClient()
     client.force_authenticate(user=user)
     response = client.get("/api/v1/auth/onboarding/")
@@ -54,7 +65,12 @@ def test_onboarding_reports_real_share_action_not_automatic_link():
 @pytest.mark.django_db
 def test_whatsapp_share_is_readable_and_uses_propertyos_local_frontend():
     tenant = Tenant.objects.create(name="Readable Realty")
-    user = User.objects.create_user(email="share@example.com", password="StrongPass!42", name="Share Broker", tenant=tenant)
+    user = User.objects.create_user(
+        email="share@example.com",
+        password="StrongPass!42",
+        name="Share Broker",
+        tenant=tenant,
+    )
     prop = Property.objects.create(
         tenant=tenant,
         created_by=user,

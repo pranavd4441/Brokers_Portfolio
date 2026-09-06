@@ -71,7 +71,9 @@ class PublicEventLogView(generics.CreateAPIView):
         share_link = share_links.order_by("-created_at").first()
         if not share_link:
             return Response(
-                {"detail": "This listing is not available through a public share link."},
+                {
+                    "detail": "This listing is not available through a public share link."
+                },
                 status=status.HTTP_404_NOT_FOUND,
             )
         if share_link.expiry and share_link.expiry < timezone.now():
@@ -151,7 +153,15 @@ class PublicEventLogView(generics.CreateAPIView):
                         (lead.notes or "")
                         + f"\nLatest signal: {event_type} at {timezone.now().isoformat()}"
                     ).strip()
-                    lead.save(update_fields=["buyer_name", "source", "analytics_event", "notes", "updated_at"])
+                    lead.save(
+                        update_fields=[
+                            "buyer_name",
+                            "source",
+                            "analytics_event",
+                            "notes",
+                            "updated_at",
+                        ]
+                    )
                 else:
                     lead = Lead.objects.create(
                         tenant=property_obj.tenant,
@@ -190,7 +200,7 @@ class PublicEventLogView(generics.CreateAPIView):
                     f"🔗 *Listing Link:* {public_url}\n\n"
                     "🔥 *5-minute playbook:*\n"
                     "1. Reply immediately with the listing link.\n"
-                    "2. Ask: \"Would you like a video tour or site visit slot?\"\n"
+                    '2. Ask: "Would you like a video tour or site visit slot?"\n'
                     "3. Offer 2 time options so they can choose fast.\n\n"
                     "Suggested reply:\n"
                     f"Hi {buyer_name.split()[0]}, thanks for checking {property_obj.title}. "

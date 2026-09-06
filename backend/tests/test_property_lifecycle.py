@@ -170,7 +170,10 @@ def test_public_listing_excludes_original_whatsapp_import(api_client, test_data)
         status="AVAILABLE",
         source="WHATSAPP",
         location_address="PRIVATE EXACT ADDRESS",
-        intake_metadata={"raw_details": "PRIVATE OWNER PHONE AND ADDRESS", "reviewed": True},
+        intake_metadata={
+            "raw_details": "PRIVATE OWNER PHONE AND ADDRESS",
+            "reviewed": True,
+        },
     )
     link = ShareLink.objects_unfiltered.get(property=prop)
     response = api_client.get(f"/api/sharing/public/{link.slug}/")
@@ -183,4 +186,7 @@ def test_public_listing_excludes_original_whatsapp_import(api_client, test_data)
     api_client.force_authenticate(user=user)
     private_response = api_client.get(f"/api/properties/{prop.id}/")
     assert private_response.status_code == 200
-    assert private_response.data["intake_metadata"]["raw_details"] == "PRIVATE OWNER PHONE AND ADDRESS"
+    assert (
+        private_response.data["intake_metadata"]["raw_details"]
+        == "PRIVATE OWNER PHONE AND ADDRESS"
+    )

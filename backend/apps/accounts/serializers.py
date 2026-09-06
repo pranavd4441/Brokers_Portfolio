@@ -30,8 +30,16 @@ class TenantSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = [
-            "id", "subscription_plan", "plan_status", "pilot_started_at", "pilot_ends_at",
-            "founding_price_expires_at", "referral_code", "referred_by_code", "share_actions_count", "created_at"
+            "id",
+            "subscription_plan",
+            "plan_status",
+            "pilot_started_at",
+            "pilot_ends_at",
+            "founding_price_expires_at",
+            "referral_code",
+            "referred_by_code",
+            "share_actions_count",
+            "created_at",
         ]
 
 
@@ -149,16 +157,24 @@ class RegistrationSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
     password = serializers.CharField(min_length=8, write_only=True, required=True)
     phone = serializers.CharField(max_length=20, required=True)
-    acquisition_source = serializers.CharField(max_length=100, required=False, default="direct")
-    acquisition_city = serializers.CharField(max_length=100, required=False, default="Pune")
-    referral_code = serializers.CharField(max_length=24, required=False, allow_blank=True)
+    acquisition_source = serializers.CharField(
+        max_length=100, required=False, default="direct"
+    )
+    acquisition_city = serializers.CharField(
+        max_length=100, required=False, default="Pune"
+    )
+    referral_code = serializers.CharField(
+        max_length=24, required=False, allow_blank=True
+    )
     preferred_locale = serializers.ChoiceField(choices=("en", "hi", "mr"), default="en")
     marketing_consent = serializers.BooleanField(default=False)
     dpdp_consent = serializers.BooleanField(required=True)
 
     def validate_dpdp_consent(self, value):
         if not value:
-            raise serializers.ValidationError("Consent is required to create and operate your workspace.")
+            raise serializers.ValidationError(
+                "Consent is required to create and operate your workspace."
+            )
         return value
 
     def validate_email(self, value):

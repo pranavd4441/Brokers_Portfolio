@@ -34,7 +34,9 @@ class PropertyAIService:
         api_key = getattr(settings, "GEMINI_API_KEY", "").strip()
         if not api_key:
             if allow_fallback:
-                logger.info("Gemini API key not configured. Explicit template fallback requested.")
+                logger.info(
+                    "Gemini API key not configured. Explicit template fallback requested."
+                )
                 return PropertyAIService._get_fallback_data(
                     raw_notes, property_type, price, bhk, area, city
                 )
@@ -151,7 +153,9 @@ Ensure all fields are fully populated and text is copywriter-grade, practical fo
                     return parsed_data
 
                 if allow_fallback:
-                    logger.warning("Gemini output missed required fields. Explicit fallback requested.")
+                    logger.warning(
+                        "Gemini output missed required fields. Explicit fallback requested."
+                    )
                     return PropertyAIService._get_fallback_data(
                         raw_notes, property_type, price, bhk, area, city
                     )
