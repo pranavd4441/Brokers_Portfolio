@@ -4,11 +4,11 @@ import AppProviders from "@/components/AppProviders";
 
 export const metadata: Metadata = {
   title: "PropertyOS — Broker Operating System",
-  description: "Create premium property landing pages, share via WhatsApp, and track every lead — all in under 60 seconds.",
+  description: "Branded pages for residential, commercial and land listings. Share properties on WhatsApp and organise captured enquiries in one workspace.",
   keywords: ["real estate", "property marketing", "broker platform", "WhatsApp properties"],
   openGraph: {
     title: "PropertyOS — Broker Operating System",
-    description: "Create premium property landing pages and share via WhatsApp in under 60 seconds.",
+    description: "Your real estate business, online. Branded property pages, WhatsApp sharing and enquiry management for independent brokers.",
     type: "website",
   },
 };
