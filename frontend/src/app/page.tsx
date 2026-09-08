@@ -5,12 +5,14 @@ import { useEffect, useState } from 'react';
 import { ArrowRight, Building2, Check, Menu, X, ChevronDown } from 'lucide-react';
 import { LandingHero } from '@/components/landing/LandingHero';
 import { TrustBar } from '@/components/landing/TrustBar';
-import { CreationWalkthrough } from '@/components/landing/CreationWalkthrough';
-import { FeatureShowcase } from '@/components/landing/FeatureShowcase';
 import { SamplePortfolio } from '@/components/landing/SamplePortfolio';
+import { ProductWalkthrough } from '@/components/landing/ProductWalkthrough';
+import { WhatsAppDemo } from '@/components/landing/WhatsAppDemo';
+import { AIDescriptionDemo } from '@/components/landing/AIDescriptionDemo';
+import { FeatureShowcase } from '@/components/landing/FeatureShowcase';
 import { COPY, Language, parseLanguage, signupHref } from '@/components/landing/content';
 
-const anchors = ['samples', 'how', 'pricing', 'faq'];
+const anchors = ['samples', 'walkthrough', 'pricing', 'faq'];
 const footerPaths = ['/support', '/privacy', '/terms', '/refund'];
 
 export default function HomePage() {
@@ -61,7 +63,9 @@ export default function HomePage() {
         <LandingHero currentLang={language} />
         <TrustBar currentLang={language} />
         <SamplePortfolio currentLang={language} />
-        <CreationWalkthrough currentLang={language} />
+        <ProductWalkthrough currentLang={language} />
+        <WhatsAppDemo currentLang={language} />
+        <AIDescriptionDemo currentLang={language} />
         <FeatureShowcase currentLang={language} />
         <section id="pricing" className="landing-band landing-pricing" aria-labelledby="pricing-title">
           <div className="landing-wrap">
