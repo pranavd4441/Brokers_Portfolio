@@ -2,6 +2,25 @@
 // All calls go to Meta's Cloud API v19.0
 // Requires env vars: WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID
 
+// ─── Client-safe helpers (used by browser components) ─────────────────────────
+
+const DEFAULT_SUPPORT_WHATSAPP = '918855023247';
+const KNOWN_PLACEHOLDER_NUMBERS = new Set(['919876543210']);
+
+export function getSupportWhatsAppNumber(configuredNumber?: string): string {
+  const digits = (configuredNumber || '').replace(/\D/g, '');
+  const isValid = /^[1-9]\d{7,14}$/.test(digits);
+  return isValid && !KNOWN_PLACEHOLDER_NUMBERS.has(digits)
+    ? digits
+    : DEFAULT_SUPPORT_WHATSAPP;
+}
+
+export function buildWhatsAppShareUrl(message: string): string {
+  return `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+}
+
+// ─── Server-side Cloud API config ─────────────────────────────────────────────
+
 const WA_API_VERSION = 'v19.0';
 const WA_API_BASE = `https://graph.facebook.com/${WA_API_VERSION}`;
 
