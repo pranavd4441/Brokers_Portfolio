@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import { useState, useRef, useCallback } from 'react';
 import { Camera, Eye, MessageCircle, Inbox, ChevronRight, Building2, Check, Link as LinkIcon, ImageIcon, UserCheck } from 'lucide-react';
 import { COPY, Language, signupHref } from './content';
 

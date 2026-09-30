@@ -68,6 +68,10 @@ def validate_environment():
             production_required["WHATSAPP_ACCESS_TOKEN"] = "WHATSAPP_ACCESS_TOKEN"  # nosec B105
             production_required["WHATSAPP_PHONE_NUMBER_ID"] = "WHATSAPP_PHONE_NUMBER_ID"  # nosec B105
             production_required["WHATSAPP_APP_SECRET"] = "WHATSAPP_APP_SECRET"  # nosec B105
+            production_required["WHATSAPP_VERIFY_TOKEN"] = "WHATSAPP_VERIFY_TOKEN"  # nosec B105
+            production_required["WHATSAPP_BUSINESS_NUMBER"] = "WHATSAPP_BUSINESS_NUMBER"  # nosec B105
+            production_required["WHATSAPP_VERIFY_TOKEN"] = "WHATSAPP_VERIFY_TOKEN"  # nosec B105
+            production_required["WHATSAPP_BUSINESS_NUMBER"] = "WHATSAPP_BUSINESS_NUMBER"  # nosec B105
 
         missing_production = [
             logical_name
@@ -96,6 +100,10 @@ def validate_environment():
         "AWS_STORAGE_BUCKET_NAME": "Object Storage / S3 (media uploads use local disk fallback)",  # nosec B105
         "WHATSAPP_ACCESS_TOKEN": "WhatsApp Integration (messaging disabled)",  # nosec B105
         "WHATSAPP_PHONE_NUMBER_ID": "WhatsApp Integration (messaging disabled)",  # nosec B105
+        "WHATSAPP_APP_SECRET": "WhatsApp Integration (webhook rejected)",  # nosec B105
+        "WHATSAPP_BUSINESS_NUMBER": "WhatsApp Integration (intake link disabled)",  # nosec B105
+        "WHATSAPP_APP_SECRET": "WhatsApp Integration (webhook rejected)",  # nosec B105
+        "WHATSAPP_BUSINESS_NUMBER": "WhatsApp Integration (intake link disabled)",  # nosec B105
         "GEMINI_API_KEY": "Gemini AI (AI features disabled)",  # nosec B105
         "SENTRY_DSN": "Sentry (error tracking disabled)",  # nosec B105
     }

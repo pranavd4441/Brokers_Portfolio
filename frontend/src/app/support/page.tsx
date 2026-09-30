@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ArrowLeft, Mail, MessageCircle } from 'lucide-react';
 import { parseLanguage } from '@/components/landing/content';
+import { getSupportWhatsAppNumber } from '@/lib/whatsapp';
 
 const copy = {
   en: { title: 'Let’s get your business online.', intro: 'Talk to us about your first listing, account help or Founding Pro access.', whatsapp: 'Chat with broker support', email: 'Email support', languages: 'Support in English, Hindi and Marathi.', note: 'Include what you need help with and your registered email. Never share your password or one-time code.', message: 'Hi, I would like help with PropertyOS onboarding or Founding Pro access.' },
@@ -11,8 +12,7 @@ const copy = {
 export default async function Support({ searchParams }: { searchParams: Promise<{ lang?: string }> }) {
   const language = parseLanguage((await searchParams).lang ?? null);
   const t = copy[language];
-  const configuredNumber = (process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || '').replace(/\D/g, '');
-  const number = /^[1-9]\d{7,14}$/.test(configuredNumber) && configuredNumber !== '919876543210' ? configuredNumber : '918855023247';
+  const number = getSupportWhatsAppNumber(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP);
   const configuredEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim();
   const email = configuredEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(configuredEmail) ? configuredEmail : null;
 

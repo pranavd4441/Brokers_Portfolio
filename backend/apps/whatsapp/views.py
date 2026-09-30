@@ -29,6 +29,7 @@ from .serializers import WhatsAppSessionSerializer
 from .services import (
     GeminiAudioTranscriptionService,
     GeminiParserService,
+    get_meta_graph_url,
     send_and_log_message,
 )
 
@@ -253,7 +254,7 @@ class WhatsAppWebhookView(APIView):
         expected = base64.b64encode(mac.digest()).decode("utf-8")
         return hmac.compare_digest(expected, signature)
 
-    def _verify_meta_signature(self, request) -> bool:
+    def _verify_meta_signature(self, request, body_bytes: bytes) -> bool:
         """
         Validates the X-Hub-Signature-256 header using HMAC-SHA256 and WHATSAPP_APP_SECRET.
         Returns True in dev (no app secret configured or DEBUG is True) to allow local testing.
@@ -270,15 +271,7 @@ class WhatsAppWebhookView(APIView):
         if not signature_header or not signature_header.startswith("sha256="):
             return False
 
-        signature = signature_header.split("sha256=")[1]
-        try:
-            body_bytes = request.body
-        except Exception as e:
-            logger.error(
-                f"Failed to read request body for Meta signature verification: {str(e)}"
-            )
-            return False
-
+        signature = signature_header.removeprefix("sha256=")
         mac = hmac.new(app_secret.encode("utf-8"), body_bytes, hashlib.sha256)
         expected = mac.hexdigest()
         return hmac.compare_digest(expected, signature)
@@ -290,6 +283,16 @@ class WhatsAppWebhookView(APIView):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
+        # Meta signs the exact request bytes, so capture them before DRF parses request.data.
+        try:
+            raw_body = request.body
+        except Exception as e:
+            logger.error("Failed to read webhook body: %s", str(e))
+            return Response(
+                {"detail": "Invalid request body"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         # 0. Detect and Parse Webhook Origin
         is_meta = False
         data = request.data
@@ -299,7 +302,7 @@ class WhatsAppWebhookView(APIView):
 
         # 0a. Verify Meta signature if Meta webhook
         if is_meta:
-            if not self._verify_meta_signature(request):
+            if not self._verify_meta_signature(request, raw_body):
                 logger.warning("Rejected Meta webhook: invalid signature.")
                 return Response(
                     {"detail": "Forbidden"}, status=status.HTTP_403_FORBIDDEN
@@ -357,9 +360,7 @@ class WhatsAppWebhookView(APIView):
                             access_token = getattr(
                                 settings, "WHATSAPP_ACCESS_TOKEN", ""
                             )
-                            media_info_url = (
-                                f"https://graph.facebook.com/v18.0/{audio_id}"
-                            )
+                            media_info_url = get_meta_graph_url(audio_id)
                             req_media = urllib.request.Request(
                                 media_info_url,
                                 headers={"Authorization": f"Bearer {access_token}"},
@@ -1101,9 +1102,7 @@ class WhatsAppWebhookView(APIView):
                                 access_token = getattr(
                                     settings, "WHATSAPP_ACCESS_TOKEN", ""
                                 )
-                                media_info_url = (
-                                    f"https://graph.facebook.com/v18.0/{image_id}"
-                                )
+                                media_info_url = get_meta_graph_url(image_id)
                                 req_media = urllib.request.Request(
                                     media_info_url,
                                     headers={"Authorization": f"Bearer {access_token}"},
@@ -1462,12 +1461,28 @@ class WhatsAppConnectionView(APIView):
         provider = getattr(settings, "WHATSAPP_GATEWAY_PROVIDER", "MOCK").upper()
         if provider == "TWILIO":
             intake_number = getattr(settings, "TWILIO_WHATSAPP_NUMBER", "")
+            configured = all(
+                [
+                    intake_number,
+                    getattr(settings, "TWILIO_ACCOUNT_SID", ""),
+                    getattr(settings, "TWILIO_AUTH_TOKEN", ""),
+                ]
+            )
         elif provider == "META":
             intake_number = getattr(settings, "WHATSAPP_BUSINESS_NUMBER", "")
+            configured = all(
+                [
+                    intake_number,
+                    getattr(settings, "WHATSAPP_ACCESS_TOKEN", ""),
+                    getattr(settings, "WHATSAPP_PHONE_NUMBER_ID", ""),
+                    getattr(settings, "WHATSAPP_APP_SECRET", ""),
+                    getattr(settings, "WHATSAPP_VERIFY_TOKEN", ""),
+                ]
+            )
         else:
             intake_number = ""
+            configured = False
 
-        configured = bool(intake_number) and provider in {"META", "TWILIO"}
         return Response(
             {
                 "provider": provider,

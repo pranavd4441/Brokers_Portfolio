@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { Copy, Check, ChevronRight, MessageCircle, Building2, Link as LinkIcon, Inbox } from 'lucide-react';
+import { Copy, Check, ChevronRight, MessageCircle, Building2, ExternalLink, Link as LinkIcon, Inbox } from 'lucide-react';
+import { buildWhatsAppShareUrl } from '@/lib/whatsapp';
 import { COPY, Language } from './content';
 
 export function WhatsAppDemo({ currentLang }: { currentLang: Language }) {
@@ -12,6 +13,7 @@ export function WhatsAppDemo({ currentLang }: { currentLang: Language }) {
   const total = t.waDemoSteps.length;
 
   const WHATSAPP_MESSAGE = t.waDemoSteps[1].visual;
+  const whatsappPreviewUrl = buildWhatsAppShareUrl(WHATSAPP_MESSAGE);
 
   const handleCopy = useCallback(async () => {
     if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
@@ -88,12 +90,21 @@ export function WhatsAppDemo({ currentLang }: { currentLang: Language }) {
                         {copyState === 'copied' ? <Check size={15} /> : <Copy size={15} />}
                         {copyState === 'copied' ? t.waDemoCopied : t.waDemoCopy}
                       </button>
+                      <a
+                        className="wa-demo-open-btn"
+                        href={whatsappPreviewUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <ExternalLink size={15} aria-hidden="true" />
+                        {t.waDemoOpen}
+                      </a>
                       {copyState === 'error' && (
                         <p className="wa-demo-copy-error" role="alert">{t.waDemoCopyError}</p>
                       )}
                     </div>
                     <p className="wa-demo-no-send-note" aria-live="polite">
-                      No message is sent automatically. Copy and paste into WhatsApp yourself.
+                      {t.waDemoOpenNote}
                     </p>
                   </div>
                 )}

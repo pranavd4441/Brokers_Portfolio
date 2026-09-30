@@ -9,6 +9,27 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_META_GRAPH_API_VERSION = "v25.0"
+
+
+def get_meta_graph_url(resource: str) -> str:
+    """Build a versioned Meta Graph API URL from trusted configuration."""
+    version = str(
+        getattr(
+            settings,
+            "WHATSAPP_GRAPH_API_VERSION",
+            DEFAULT_META_GRAPH_API_VERSION,
+        )
+    ).strip()
+    if not re.fullmatch(r"v\d+\.\d+", version):
+        logger.error(
+            "Invalid WHATSAPP_GRAPH_API_VERSION %r; using %s.",
+            version,
+            DEFAULT_META_GRAPH_API_VERSION,
+        )
+        version = DEFAULT_META_GRAPH_API_VERSION
+    return f"https://graph.facebook.com/{version}/{str(resource).lstrip('/')}"
+
 # ─── AI & Natural Language Parsing Services ───────────────────────
 
 
@@ -425,17 +446,16 @@ class MetaWhatsAppGateway(BaseWhatsAppGateway):
 
         if not access_token or not phone_number_id:
             logger.error(
-                "Meta WhatsApp credentials unconfigured. Falling back to Mock gateway."
+                "Meta WhatsApp credentials are not configured; message rejected."
             )
-            return MockWhatsAppGateway().send_message(
-                to_number, body, media_url, buttons, list_items, list_title
-            )
+            return False
 
-        # Standardize number format (remove leading '+' for Meta API)
-        clean_to = to_number.replace("+", "").strip()
+        clean_to = re.sub(r"\D", "", to_number.replace("whatsapp:", ""))
+        if not clean_to:
+            logger.error("Meta WhatsApp recipient number is empty or invalid.")
+            return False
 
-        # Meta API URL
-        url = f"https://graph.facebook.com/v18.0/{phone_number_id}/messages"
+        url = get_meta_graph_url(f"{phone_number_id}/messages")
 
         if buttons:
             data_dict = {
@@ -457,6 +477,11 @@ class MetaWhatsAppGateway(BaseWhatsAppGateway):
                     },
                 },
             }
+            if media_url:
+                data_dict["interactive"]["header"] = {
+                    "type": "image",
+                    "image": {"link": media_url},
+                }
         elif list_items:
             data_dict = {
                 "messaging_product": "whatsapp",
@@ -484,16 +509,22 @@ class MetaWhatsAppGateway(BaseWhatsAppGateway):
                     },
                 },
             }
+        elif media_url:
+            data_dict = {
+                "messaging_product": "whatsapp",
+                "recipient_type": "individual",
+                "to": clean_to,
+                "type": "image",
+                "image": {"link": media_url, "caption": body[:1024]},
+            }
         else:
             data_dict = {
                 "messaging_product": "whatsapp",
                 "recipient_type": "individual",
                 "to": clean_to,
                 "type": "text",
-                "text": {"body": body},
+                "text": {"body": body[:4096]},
             }
-            if media_url:
-                data_dict["text"]["body"] += f"\n\nMedia Attachment: {media_url}"
 
         import json
 

@@ -1,3 +1,6 @@
+import hashlib
+import hmac
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,7 +11,12 @@ from apps.accounts.models import Tenant, User
 from apps.properties.models import Property
 from apps.sharing.models import ShareLink
 from apps.whatsapp.models import ConversationMessage, WhatsAppSession
-from apps.whatsapp.services import GeminiAudioTranscriptionService, RegexParserService
+from apps.whatsapp.services import (
+    GeminiAudioTranscriptionService,
+    MetaWhatsAppGateway,
+    RegexParserService,
+    get_meta_graph_url,
+)
 
 
 @pytest.fixture
@@ -56,6 +64,65 @@ def test_regex_parser_logic():
     assert clubhouse_apartment["property_type"] == "APARTMENT"
     assert clubhouse_apartment["area"] == "Wakad"
     assert clubhouse_apartment["city"] == "Pune"
+
+
+@patch("apps.whatsapp.services.urllib.request.urlopen")
+def test_meta_gateway_uses_configured_graph_version(mock_urlopen, settings):
+    settings.WHATSAPP_ACCESS_TOKEN = "test-access-token"
+    settings.WHATSAPP_PHONE_NUMBER_ID = "123456789"
+    settings.WHATSAPP_GRAPH_API_VERSION = "v25.0"
+
+    response = MagicMock()
+    response.__enter__.return_value.read.return_value = json.dumps(
+        {"messages": [{"id": "wamid.test-message"}]}
+    ).encode("utf-8")
+    mock_urlopen.return_value = response
+
+    delivered = MetaWhatsAppGateway().send_message("+91 99999 99999", "Hello")
+
+    assert delivered is True
+    request = mock_urlopen.call_args.args[0]
+    assert request.full_url == "https://graph.facebook.com/v25.0/123456789/messages"
+
+
+def test_meta_graph_version_rejects_untrusted_configuration(settings):
+    settings.WHATSAPP_GRAPH_API_VERSION = "https://untrusted.example"
+
+    assert get_meta_graph_url("123/media") == (
+        "https://graph.facebook.com/v25.0/123/media"
+    )
+
+
+@pytest.mark.django_db
+def test_meta_webhook_accepts_valid_signature_over_exact_request_body(
+    api_client, settings
+):
+    settings.DEBUG = False
+    settings.WHATSAPP_GATEWAY_PROVIDER = "META"
+    settings.WHATSAPP_VERIFY_TOKEN = "propertyos-test-verify"
+    settings.WHATSAPP_APP_SECRET = "propertyos-test-secret"
+    webhook_url = reverse("whatsapp_webhook")
+    payload = json.dumps(
+        {
+            "object": "whatsapp_business_account",
+            "entry": [{"changes": [{"value": {"statuses": []}}]}],
+        },
+        separators=(",", ":"),
+    ).encode("utf-8")
+    signature = hmac.new(
+        settings.WHATSAPP_APP_SECRET.encode("utf-8"), payload, hashlib.sha256
+    ).hexdigest()
+
+    accepted = api_client.generic(
+        "POST",
+        webhook_url,
+        payload,
+        content_type="application/json",
+        HTTP_X_HUB_SIGNATURE_256=f"sha256={signature}",
+    )
+
+    assert accepted.status_code == 200
+    assert accepted.json()["status"] == "ignored"
 
 
 @pytest.mark.django_db
